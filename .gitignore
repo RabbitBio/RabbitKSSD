@@ -1,0 +1,17 @@
+**/*
+
+!.gitignore
+!.gitmodules
+!CMakeLists.txt
+!LICENSE.txt
+!README.md
+
+!src/
+!src/*
+
+!shuf_file/
+!shuf_file/*
+
+
+
+
