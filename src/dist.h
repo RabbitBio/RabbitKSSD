@@ -18,8 +18,8 @@ typedef struct setResult
 
 setResult_t getJaccard(vector<uint64_t> list1, vector<uint64_t> list2);
 
-void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, int numThreads);
 
+void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, double maxDist, int numThreads);
 
 
 

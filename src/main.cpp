@@ -13,59 +13,76 @@
 #include "parameter.h"
 #include "sketch.h"
 #include "dist.h"
+#include "subCommand.h"
 
 
 #include <algorithm>
 #include <omp.h>
 #include <cmath>
+#include "CLI11.hpp"
 
 
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 
-
-int numThreads = 48;
 
 using namespace std;
 
-bool cmp(uint64_t a, uint64_t b){
-	return a < b;
-}
-
-
-
-bool cmpSketch(sketch_t s1, sketch_t s2){
-	return s1.id < s2.id;
-}
-
-#ifdef DIST_INDEX
-void get_dist_by_index(vector< vector<uint64_t> > final_hash_index, vector<sketch_t> sketches, int kmer_size);
-#endif
-
 int main(int argc, char * argv[]){
+	
 	double t0 = get_sec();
-	if(argc < 2)
-		err(errno, "argument number %d must be greater than 1", argc);
 
-	//cout << "start main: " << endl;
-	//global arguments
-	string inputFile = argv[1];
+	CLI::App app{"kssd: k-mer substring space sampling for analyzing large-scale genome databases"};
+	app.require_subcommand(1);
+	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
+	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
+
+	string refList = "default";
+	string queryList = "default";
+	double maxDist = 1.0;
 	int half_k = 10;
 	int half_subk = 6;
 	int drlevel = 3;
-	int kmer_size = 2 * half_k;
+	int threads = get_nprocs_conf();
+	string shuf_file = "shuf_file/bact.shuf";
+	string outputFile = "result.out";
+	
+	auto alldist_option_i = alldist->add_option("-i, --input", refList, "list of input genome path, one genome per line");
+	auto alldist_option_m = alldist->add_option("-m, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	auto alldist_option_k = alldist->add_option("-k, --halfk", half_k, "the half length of kmer size");
+	auto alldist_option_s = alldist->add_option("-s, --subk", half_subk, "the half length of substring space");
+	auto alldist_option_l = alldist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
+	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
+	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
+	alldist_option_k->excludes(alldist_option_L);
+	alldist_option_s->excludes(alldist_option_L);
+	alldist_option_l->excludes(alldist_option_L);
 
-	//arguments for sketch query
-	bool isList = true;
+	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path, one genome per line");
+	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path, one genome per line");
+	auto dist_option_m = dist->add_option("-m, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	auto dist_option_k = dist->add_option("-k, --halfk", half_k, "the half length of kmer size");
+	auto dist_option_s = dist->add_option("-s, --subk", half_subk, "the half length of substring space");
+	auto dist_option_l = dist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
+	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
+	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
+	dist_option_k->excludes(dist_option_L);
+	dist_option_s->excludes(dist_option_L);
+	dist_option_l->excludes(dist_option_L);
+
+	CLI11_PARSE(app, argc, argv);
+
 	double t1 = get_sec();
 	cerr << "===================time of init parameters is: " << t1 - t0 << endl;
 
-	//step1: get the shuffle array
-	bool readShuffleFile = true;
-
+	int kmer_size = 2 * half_k;
 	int * shuffled_dim;
+
+	bool readShuffleFile = true;
 	if(readShuffleFile){
-		string shufFile = "shuf_file/bact.shuf";
-		shuffled_dim = read_shuffle_dim(shufFile);
+		shuffled_dim = read_shuffle_dim(shuf_file);
 	}
 	else{
 		shuffled_dim = generate_shuffle_dim(half_subk);
@@ -76,74 +93,14 @@ int main(int argc, char * argv[]){
 	double t2 = get_sec();
 	cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
 
-
-	//step2: generate the query sketches for each genome or sequence.
-	//uint64_t ** coList = (uint64_t **)malloc(fileList.size() * sizeof(uint64_t*));
-
-	vector<sketch_t> sketches;
-	//vector< vector<uint64_t> > hashList;
-	
-	bool success = sketchFile(inputFile, numThreads, kssd_parameter, sketches);
-	cerr << "finish the sketch generation " << success << endl;
-	cerr << "the size of sketches is: " << sketches.size() << endl;
-
-
-
-	double t3 = get_sec();
-	cerr << "===================time of generator sketches is: " << t3 - t2 << endl;
-
-	std::sort(sketches.begin(), sketches.end(), cmpSketch);
-	//for(int i = 0; i < fileList.size(); i++){
-	//	vector<uint64_t> hashArr;
-	//	for(int j = 0; j < hashSize; j++){
-	//		if(coList[i][j] != 0){
-	//			hashArr.push_back(coList[i][j]);
-	//		}
-	//	}
-	//	hashList.push_back(hashArr);
-	//}
-	double t4 = get_sec();
-	cerr << "===================time of sort sketches order is: " << t4 - t3 << endl;
-
-	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < sketches.size(); i++)
-	{
-		std::sort(sketches[i].hashSet.begin(), sketches[i].hashSet.end(), cmp);
+	if(app.got_subcommand(alldist)){
+		cerr << "run the submodule: alldist" << endl;
+		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
-	double t5 = get_sec();
-	cerr << "===================time of sort each sketches is: " << t5 - t4 << endl;
-
-	string hash_output = "hash.out";
-	FILE * fp = fopen(hash_output.c_str(), "w+");
-	for(int i = 0; i < sketches.size(); i++){
-		//cout << "the sketch size of file " << i << " is: " << hashList[i].size() << endl;
-		//cerr << "the sketch size of " << sketches[i].fileName << " is: " << sketches[i].hashSet.size() << endl;
-		//fprintf(stderr, "the sketch size of file %s is: %d\n", i, sketches[i].fileName.c_str(), sketches[i].hashSet.size());
-		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			fprintf(fp, "%llu\t", sketches[i].hashSet[j]);
-			if(j % 10 == 9) fprintf(fp, "\n");
-		}
-		fprintf(fp, "\n");
-		fprintf(fp, "\n");
-		//fprintf(fp, "\n");
+	else if(app.got_subcommand(dist)){
+		cerr << "run the submodule: dist" << endl;
 	}
-	fclose(fp);
-
-	double t6 = get_sec();
-	cerr << "===================time of save sketches into hash.out is: " << t6 - t5 << endl;
-
-	//compute the pair distance
 	
-	cerr << "start the distance computing" << endl;
-	string dist_output = "result.out";
-
-	tri_dist(sketches, dist_output, kmer_size, numThreads);
-
-	//FILE * fp0 = fopen(dist_output.c_str(), "w");
-	double t7 = get_sec();
-	cerr << "===================time of get total distance matrix file is: " << t7 - t6 << endl;
-
-
 	return 0;
 }
 
@@ -153,9 +110,9 @@ int main(int argc, char * argv[]){
 
 #ifdef DIST_INDEX
 	uint64_t hash_range = 1 << (4 * (half_k - drlevel));
-	vector< vector<uint64_t> > hash_index_arr[numThreads];
-	//uint64_t ** hash_index_arr = (uint64_t **)malloc(numThreads * sizeof(uint64_t *));
-	for(int i = 0; i < numThreads; i++)
+	vector< vector<uint64_t> > hash_index_arr[threads];
+	//uint64_t ** hash_index_arr = (uint64_t **)malloc(threads * sizeof(uint64_t *));
+	for(int i = 0; i < threads; i++)
 	{
 		hash_index_arr[i].resize(hash_range);
 	}
@@ -167,7 +124,7 @@ int main(int argc, char * argv[]){
 	final_hash_index.resize(hash_range);
 	for(int i = 0; i < hash_range; i++)
 	{
-		for(int j = 0; j < numThreads; j++)
+		for(int j = 0; j < threads; j++)
 		{
 			final_hash_index[i].insert(final_hash_index[i].end(), hash_index_arr[j][i].begin(), hash_index_arr[j][i].end());
 		}
@@ -220,7 +177,7 @@ void get_dist_by_index(vector< vector<uint64_t> > final_hash_index, vector<sketc
 	string output = "result.out";
 	vector<string> dist_file_list;
 	vector<FILE*> fpArr;
-	for(int i = 0; i < numThreads; i++)
+	for(int i = 0; i < threads; i++)
 	{
 		string tmpName = output + to_string(i);
 		dist_file_list.push_back(tmpName);
@@ -230,7 +187,7 @@ void get_dist_by_index(vector< vector<uint64_t> > final_hash_index, vector<sketc
 	}
 	
 	//FILE * fp = fopen(output.c_str(), "w");
-	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
+	#pragma omp parallel for num_threads(threads) schedule(dynamic)
 	for(int i = 0; i < sketches.size(); i++)
 	{
 		int tid = omp_get_thread_num();
@@ -249,7 +206,7 @@ void get_dist_by_index(vector< vector<uint64_t> > final_hash_index, vector<sketc
 			fprintf(fpArr[tid], "%s\t%s\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, jaccard, mashDist);
 		}
 	}
-	for(int i = 0; i < numThreads; i++)
+	for(int i = 0; i < threads; i++)
 	{
 		fclose(fpArr[i]);
 	}

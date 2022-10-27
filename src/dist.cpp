@@ -4,7 +4,7 @@
 #include <math.h>
 #include <sys/stat.h>
 
-void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, int numThreads){
+void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
 	double t0 = get_sec();
 	vector<string> dist_file_list;
 	vector<FILE*> fpArr;
@@ -35,8 +35,8 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, int n
 			else 
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			//fprintf(fp0, "jaccard between[%d] and [%d] is: %lf\n", i, j, jaccard);
-			if(mashD != 1.0)
-				fprintf(fpArr[tid], " %s\t%s\t%d\t%d\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+			if(mashD < maxDist)
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
 		}
 	}
 	//close the subResultFile
@@ -51,7 +51,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, int n
 	FILE * cofp;
 	FILE * com_cofp = fopen(outputFile.c_str(), "w");
 	//fprintf(fpArr[tid], " %s\t%s\t%d\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, denom, jaccard, mashD);
-	fprintf(com_cofp, " genome0\tgenome1\tcommon\tdenom\tjaccard\t%mashD\n");
+	fprintf(com_cofp, " genome0\tgenome1\tcommon|size0|size1\tjaccard\t%mashD\n");
 	int bufSize = 1 << 24;
 	int lengthRead = 0;
 	char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));

@@ -23,7 +23,6 @@ kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shu
 	parameter.half_outctx_len = half_outctx_len;
 	parameter.rev_add_move = 4 * half_k - 2;
 	parameter.kmer_size = 2 * half_k;
-	std::cerr << "ehhhhhhh" <<  BaseMap['A'] << std::endl;
 	
 	parameter.dim_start = 0;
 	parameter.dim_end = MIN_SUBCTX_DIM_SMP_SZ;
