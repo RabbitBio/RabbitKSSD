@@ -3,6 +3,8 @@
 #include "dist.h"
 #include <algorithm>
 #include <vector>
+#include <cstdlib>
+#include <unordered_set>
 
 bool cmp(uint64_t a, uint64_t b){
 	return a < b;
@@ -34,17 +36,9 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 	double t5 = get_sec();
 	cerr << "===================time of sort each sketches is: " << t5 - t4 << endl;
 
-	string hash_output = refList+".hash";
-	FILE * fp = fopen(hash_output.c_str(), "w+");
-	for(int i = 0; i < sketches.size(); i++){
-		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			fprintf(fp, "%llu\t", sketches[i].hashSet[j]);
-			if(j % 10 == 9) fprintf(fp, "\n");
-		}
-		fprintf(fp, "\n");
-		fprintf(fp, "\n");
-	}
-	fclose(fp);
+
+	string refHashOut = refList + ".hash";
+	saveSketches(sketches, refHashOut);
 
 	double t6 = get_sec();
 	cerr << "===================time of save sketches into hash.out is: " << t6 - t5 << endl;
@@ -117,13 +111,44 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	cerr << "===================time of get total distance matrix file is: " << t7 - t6 << endl;
 }
 
+void command_merge(string sketchFile, string outputFile, int threadNumber){
+	
+	vector<sketch_t> sketches;
+	readSketches(sketches, sketchFile);
+	//for(int i = 0; i < sketches.size(); i++){
+	//	cout << sketches[i].fileName << endl;
+	//	//for(int j = 0; j < sketches[i].hashSet.size(); j++){
+	//	//	cout << sketches[i].hashSet[j] << '\t';
+	//	//}
+	//	//cout << endl;
+	//}
+	//exit(0);
+	string totalName("");
+	unordered_set<uint64_t> mergedSet;
+	for(int i = 0; i < sketches.size(); i++){
+		totalName += sketches[i].fileName + '\n';
+		for(int j = 0; j < sketches[i].hashSet.size(); j++){
+			uint64_t curHash = sketches[i].hashSet[j];
+			mergedSet.insert(curHash);
+		}
+	}
+	totalName = totalName.substr(0, totalName.length()-1);
+	//cout << totalName << endl;
+	cerr << "the size of merged hash set is: " << mergedSet.size() << endl;
+	vector<uint64_t> mergedArr;
+	for(auto x : mergedSet){
+		mergedArr.push_back(x);
+	}
 
-
-
-
-
-
-
+	vector<sketch_t> mergedSketches;
+	sketch_t s;
+	s.id = 0;
+	s.fileName = totalName;
+	s.hashSet = mergedArr;
+	mergedSketches.push_back(s);
+	saveSketches(mergedSketches, outputFile);
+}
+	
 
 
 

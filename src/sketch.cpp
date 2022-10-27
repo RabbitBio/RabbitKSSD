@@ -4,6 +4,7 @@
 #include <zlib.h>
 #include <omp.h>
 #include <fstream>
+#include <cstdlib>
 
 KSEQ_INIT(gzFile, gzread);
 
@@ -189,19 +190,95 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 
 }
 
+
 void saveSketches(vector<sketch_t> sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
-	for(int i = 0; i < sketches.size(); i++){
-		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			fprintf(fp, "%llu\t", sketches[i].hashSet[j]);
-			if(j % 10 == 9) fprintf(fp, "\n");
-		}
-		fprintf(fp, "\n");
-		fprintf(fp, "\n");
+	int sketchNumber = sketches.size();
+	int * genomeNameSize = new int[sketchNumber];
+	int * hashSetSize = new int[sketchNumber];
+	//uint64_t totalNumber = 0;
+	//uint64_t totalLength = 0;
+	for(int i = 0; i < sketchNumber; i++){
+		genomeNameSize[i] = sketches[i].fileName.length();
+		hashSetSize[i] = sketches[i].hashSet.size();
+		//totalNumber += hashSetSize[i];
+		//totalLength += genomeNameSize[i];
 	}
-	fclose(fp);
+	//cerr << "the sketches size is: " << sketchNumber << endl;
+	//cerr << "the total hash number is: " << totalNumber << endl;
+	//cerr << "the total name length is: " << totalLength << endl;
+	fwrite(&sketchNumber, sizeof(int), 1, fp);
+	fwrite(genomeNameSize, sizeof(int), sketchNumber, fp);
+	fwrite(hashSetSize, sizeof(int), sketchNumber, fp);
+	for(int i = 0; i < sketchNumber; i++){
+		const char * namePoint = sketches[i].fileName.c_str();
+		fwrite(namePoint, sizeof(char), genomeNameSize[i], fp);
+		uint64_t * curPoint = sketches[i].hashSet.data();
+		fwrite(curPoint, sizeof(uint64_t), hashSetSize[i], fp);
+	}
+	delete genomeNameSize;
+	delete hashSetSize;
+}
+
+void readSketches(vector<sketch_t>& sketches, string inputFile){
+	FILE * fp = fopen(inputFile.c_str(), "rb+");
+	int sketchNumber;
+	fread(&sketchNumber, sizeof(int), 1, fp);
+	cerr << "sketchNumber is: " << sketchNumber << endl;
+	int * genomeNameSize = new int[sketchNumber];
+	int * hashSetSize = new int[sketchNumber];
+	fread(genomeNameSize, sizeof(int), sketchNumber, fp);
+	fread(hashSetSize, sizeof(int), sketchNumber, fp);
+
+	//uint64_t totalNumber = 0;
+	//uint64_t totalLength = 0;
+	for(int i = 0; i < sketchNumber; i++){
+		//read the genome name.
+		int curLength = genomeNameSize[i];
+		//totalLength += curLength;
+		char * curName = new char[curLength+1];
+		int nameLength = fread(curName, sizeof(char), curLength, fp);
+		if(nameLength != curLength){
+			cerr << "error: the read nameLength is not equal to the saved nameLength, exit!" << endl;
+			exit(0);
+		}
+		string genomeName;
+		genomeName.assign(curName, curName + curLength);
+
+		//read the hash values in each sketch
+		int curSize = hashSetSize[i];
+		//totalNumber += curSize;
+		uint64_t * curPoint = new uint64_t[curSize];
+		int hashSize = fread(curPoint, sizeof(uint64_t), curSize, fp);
+		if(hashSize != curSize){
+			cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+			exit(0);
+		}
+		vector<uint64_t> curHashSet(curPoint, curPoint + curSize);
+		delete curPoint;
+		sketch_t s;
+		s.fileName = genomeName;
+		s.id = i;
+		s.hashSet=curHashSet;
+		sketches.push_back(s);
+	}
+	//cerr << "the total number of hash value of: " << inputFile << " is: " << totalNumber << endl;
+	//cerr << "the total length of genome name of: " << inputFile << " is: " << totalLength << endl;
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 	

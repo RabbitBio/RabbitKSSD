@@ -36,6 +36,7 @@ int main(int argc, char * argv[]){
 	app.require_subcommand(1);
 	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
 	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
+	CLI::App * merge = app.add_subcommand("merge", "merging the sketches into one sketch containing a set of hash values");
 
 	string refList = "default";
 	string queryList = "default";
@@ -77,6 +78,14 @@ int main(int argc, char * argv[]){
 	dist_option_q->required();
 	dist_option_o->required();
 
+	string sketchFile = "default";
+	auto merge_option_i = merge->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches, which is saved from the distance computing");
+	auto merge_option_o = merge->add_option("-o, --output", outputFile, "result file for merged hash values");
+	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number");
+	merge_option_i->required();
+	merge_option_o->required();
+	
+
 	CLI11_PARSE(app, argc, argv);
 
 	double t1 = get_sec();
@@ -99,12 +108,16 @@ int main(int argc, char * argv[]){
 	cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
 
 	if(app.got_subcommand(alldist)){
-		cerr << "run the submodule: alldist" << endl;
+		cerr << "run the subcommand: alldist" << endl;
 		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
 	else if(app.got_subcommand(dist)){
-		cerr << "run the submodule: dist" << endl;
+		cerr << "run the subcommand: dist" << endl;
 		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
+	}
+	else if(app.got_subcommand(merge)){
+		cerr << "run the subcommand: merge" << endl;
+		command_merge(sketchFile, outputFile, threads);
 	}
 	
 	return 0;
