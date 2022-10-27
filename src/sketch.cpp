@@ -189,5 +189,19 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 
 }
 
+void saveSketches(vector<sketch_t> sketches, string outputFile){
+	FILE * fp = fopen(outputFile.c_str(), "w+");
+	for(int i = 0; i < sketches.size(); i++){
+		for(int j = 0; j < sketches[i].hashSet.size(); j++){
+			fprintf(fp, "%llu\t", sketches[i].hashSet[j]);
+			if(j % 10 == 9) fprintf(fp, "\n");
+		}
+		fprintf(fp, "\n");
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+
+}
+
 
 	

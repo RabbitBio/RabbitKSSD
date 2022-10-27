@@ -58,6 +58,8 @@ int main(int argc, char * argv[]){
 	alldist_option_k->excludes(alldist_option_L);
 	alldist_option_s->excludes(alldist_option_L);
 	alldist_option_l->excludes(alldist_option_L);
+	alldist_option_i->required();
+	alldist_option_o->required();
 
 	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path, one genome per line");
 	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path, one genome per line");
@@ -71,6 +73,9 @@ int main(int argc, char * argv[]){
 	dist_option_k->excludes(dist_option_L);
 	dist_option_s->excludes(dist_option_L);
 	dist_option_l->excludes(dist_option_L);
+	dist_option_r->required();
+	dist_option_q->required();
+	dist_option_o->required();
 
 	CLI11_PARSE(app, argc, argv);
 
@@ -99,6 +104,7 @@ int main(int argc, char * argv[]){
 	}
 	else if(app.got_subcommand(dist)){
 		cerr << "run the submodule: dist" << endl;
+		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
 	
 	return 0;

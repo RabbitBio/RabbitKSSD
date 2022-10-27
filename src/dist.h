@@ -20,6 +20,7 @@ setResult_t getJaccard(vector<uint64_t> list1, vector<uint64_t> list2);
 
 
 void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, double maxDist, int numThreads);
+void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads);
 
 
 
