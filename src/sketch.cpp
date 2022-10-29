@@ -5,6 +5,7 @@
 #include <omp.h>
 #include <fstream>
 #include <cstdlib>
+#include <algorithm>
 
 KSEQ_INIT(gzFile, gzread);
 
@@ -13,6 +14,22 @@ using namespace std;
 #define H1(K, HASH_SZ) ((K) % (HASH_SZ))
 #define H2(K, HASH_SZ) (1 + (K) % ((HASH_SZ)-1))
 #define HASH(K, I, HASH_SZ) ((H1(K, HASH_SZ) + I * H2(K, HASH_SZ)) % HASH_SZ)
+
+bool cmp(uint64_t a, uint64_t b){
+	return a < b;
+}
+
+bool cmpSketch(sketch_t s1, sketch_t s2){
+	return s1.id < s2.id;
+}
+
+bool isSketchFile(string inputFile){
+	int startPos = inputFile.find_last_of('.');
+	if(startPos == string::npos) return false;
+	string suffixName = inputFile.substr(startPos+1);
+	if(suffixName == "sketch")	return true;
+	else return false;
+}
 
 bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches){
 	int half_k = parameter.half_k;
@@ -173,6 +190,7 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 			}
 		}
 		tmpSketch.id = t;
+		std::sort(hashArr.begin(), hashArr.end(), cmp);
 		tmpSketch.hashSet = hashArr;
 
 		gzclose(fp1);
@@ -185,6 +203,7 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 
 	}//end for, the fileList
 
+	std::sort(sketches.begin(), sketches.end(), cmpSketch);
 
 	return true;
 
@@ -265,6 +284,20 @@ void readSketches(vector<sketch_t>& sketches, string inputFile){
 	//cerr << "the total number of hash value of: " << inputFile << " is: " << totalNumber << endl;
 	//cerr << "the total length of genome name of: " << inputFile << " is: " << totalLength << endl;
 
+}
+
+void printSketches(vector<sketch_t> sketches, string outputFile){
+	FILE * fp = fopen(outputFile.c_str(), "w+");
+	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
+	for(int i = 0; i < sketches.size(); i++){
+		fprintf(fp, "%s\n", sketches[i].fileName.c_str());
+		for(int j = 0; j < sketches[i].hashSet.size(); j++){
+			fprintf(fp, "%d\t", sketches[i].hashSet[j]);
+			if(j % 10 == 9) fprintf(fp, "\n");
+		}
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
 }
 
 

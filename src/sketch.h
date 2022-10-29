@@ -17,7 +17,9 @@ typedef struct sketch
 
 } sketch_t;
 
+bool isSketchFile(string inputFile);
 bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches);
 void saveSketches(vector<sketch_t> sketches, string outputFile);
 void readSketches(vector<sketch_t>& sketches, string inputFile);
+void printSketches(vector<sketch_t> sketches, string outputFile);
 #endif

@@ -34,9 +34,12 @@ int main(int argc, char * argv[]){
 
 	CLI::App app{"kssd: k-mer substring space sampling for analyzing large-scale genome databases"};
 	app.require_subcommand(1);
+	CLI::App * sketch = app.add_subcommand("sketch", "computing sketches for the input genome list");
+	CLI::App * info = app.add_subcommand("info", "get the information of the sketches");
 	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
 	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
 	CLI::App * merge = app.add_subcommand("merge", "merging the sketches into one sketch containing a set of hash values");
+	CLI::App * sub = app.add_subcommand("sub", "subtracting the specific sketch from the query sketches");
 
 	string refList = "default";
 	string queryList = "default";
@@ -47,6 +50,21 @@ int main(int argc, char * argv[]){
 	int threads = get_nprocs_conf();
 	string shuf_file = "shuf_file/bact.shuf";
 	string outputFile = "result.out";
+
+	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
+	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
+	auto sketch_option_s = sketch->add_option("-s, --subk", half_subk, "the half length of substring space");
+	auto sketch_option_l = sketch->add_option("-l, --reduction", drlevel, "the dimention reduction level");
+	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
+	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	sketch_option_k->excludes(sketch_option_L);
+	sketch_option_s->excludes(sketch_option_L);
+	sketch_option_l->excludes(sketch_option_L);
+	sketch_option_i->required();
+	sketch_option_o->required();
+
+
 	
 	auto alldist_option_i = alldist->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto alldist_option_m = alldist->add_option("-m, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
@@ -79,11 +97,26 @@ int main(int argc, char * argv[]){
 	dist_option_o->required();
 
 	string sketchFile = "default";
+	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation");
+	auto info_option_o = info->add_option("-o, --output", outputFile, "the genome name and hash values in each sketch");
+	info_option_i->required();
+	info_option_o->required();
+
 	auto merge_option_i = merge->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches, which is saved from the distance computing");
 	auto merge_option_o = merge->add_option("-o, --output", outputFile, "result file for merged hash values");
 	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number");
 	merge_option_i->required();
 	merge_option_o->required();
+
+	string refSketchFile = "default";	
+	string querySketchFile = "default";	
+	auto sub_option_r = sub->add_option("--rs", refSketchFile, "the union sketches for reference sketches, which need to be subtracted from the query sketches");
+	auto sub_option_q = sub->add_option("--qs", querySketchFile, "the query sketches file");
+	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result file for merged hash values");
+	auto sub_option_t = sub->add_option("-t, --threads", threads, "set the thread number");
+	sub_option_r->required();
+	sub_option_q->required();
+	sub_option_o->required();
 	
 
 	CLI11_PARSE(app, argc, argv);
@@ -107,7 +140,16 @@ int main(int argc, char * argv[]){
 	double t2 = get_sec();
 	cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
 
-	if(app.got_subcommand(alldist)){
+	if(app.got_subcommand(sketch)){
+		cerr << "run the subcommand: sketch" << endl;
+		command_sketch(refList, outputFile, kssd_parameter, threads);
+
+	}
+	else if(app.got_subcommand(info)){
+		cerr << "run the subcommand: info" << endl;
+		command_info(sketchFile, outputFile);
+	}
+	else if(app.got_subcommand(alldist)){
 		cerr << "run the subcommand: alldist" << endl;
 		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
@@ -119,6 +161,11 @@ int main(int argc, char * argv[]){
 		cerr << "run the subcommand: merge" << endl;
 		command_merge(sketchFile, outputFile, threads);
 	}
+	else if(app.got_subcommand(sub)){
+		cerr << "run the subcommand: sub" << endl;
+		command_sub(refSketchFile, querySketchFile, outputFile, threads);
+	}
+	
 	
 	return 0;
 }
