@@ -13,7 +13,7 @@ typedef struct kssd_parameter
 	int * shuffled_dim;
 	int dim_start;
 	int dim_end;
-	int kmer_size;
+	unsigned int kmer_size;
 	int hashSize;
 	int hashLimit;
 	uint64_t domask;
@@ -34,7 +34,7 @@ static const int BaseMap[128] =
 -1, -1, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 
-static const unsigned int primer[25] = 
+static const uint32_t primer[25] = 
 {
 	251, 509, 1021, 2039, 4093, 8191, 16381,
 	32749, 65521, 131071, 262139, 524287,
@@ -44,7 +44,7 @@ static const unsigned int primer[25] =
 };
 
 double get_sec();
-int get_hashSize(int half_k, int drlevel);
+unsigned int get_hashSize(int half_k, int drlevel);
 kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shuffled_dim);
 
 #endif

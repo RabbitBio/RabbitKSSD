@@ -119,18 +119,18 @@ void command_merge(string sketchFile, string outputFile, int threadNumber){
 	//}
 	//exit(0);
 	string totalName("");
-	unordered_set<uint64_t> mergedSet;
+	unordered_set<uint32_t> mergedSet;
 	for(int i = 0; i < sketches.size(); i++){
 		totalName += sketches[i].fileName + '\n';
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			uint64_t curHash = sketches[i].hashSet[j];
+			uint32_t curHash = sketches[i].hashSet[j];
 			mergedSet.insert(curHash);
 		}
 	}
 	totalName = totalName.substr(0, totalName.length()-1);
 	//cout << totalName << endl;
 	cerr << "the size of merged hash set is: " << mergedSet.size() << endl;
-	vector<uint64_t> mergedArr;
+	vector<uint32_t> mergedArr;
 	for(auto x : mergedSet){
 		mergedArr.push_back(x);
 	}
@@ -152,7 +152,7 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	cerr << "the refSketches size is: " << refSketches.size() << endl;
 	cerr << "the querySketches size is: " << querySketches.size() << endl;
 
-	unordered_set<uint64_t> refHashSet;
+	unordered_set<uint32_t> refHashSet;
 	for(int i = 0; i < refSketches.size(); i++){
 		for(auto x : refSketches[i].hashSet){
 			refHashSet.insert(x);
@@ -165,7 +165,7 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 		sketch_t s;
 		s.fileName = querySketches[i].fileName;
 		s.id = querySketches[i].id;
-		vector<uint64_t> newHashSet;
+		vector<uint32_t> newHashSet;
 		for(auto x : querySketches[i].hashSet){
 			if(refHashSet.count(x) == 0){
 				newHashSet.push_back(x);

@@ -15,7 +15,7 @@ using namespace std;
 #define H2(K, HASH_SZ) (1 + (K) % ((HASH_SZ)-1))
 #define HASH(K, I, HASH_SZ) ((H1(K, HASH_SZ) + I * H2(K, HASH_SZ)) % HASH_SZ)
 
-bool cmp(uint64_t a, uint64_t b){
+bool cmp(uint32_t a, uint32_t b){
 	return a < b;
 }
 
@@ -40,7 +40,7 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 	int dim_start = parameter.dim_start;
 	int dim_end = parameter.dim_end;
 	int kmer_size = parameter.kmer_size;
-	int hashSize = parameter.hashSize;
+	uint32_t hashSize = parameter.hashSize;
 	int hashLimit = parameter.hashLimit;
 	uint64_t tupmask = parameter.tupmask;
 	uint64_t undomask0 = parameter.undomask0;
@@ -66,10 +66,10 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 	cerr << "the size of fileList is: " << fileList.size() << endl;
 	cerr << "the numThreads is: " << numThreads << endl;
 
-	uint64_t ** coArr = (uint64_t **)malloc(numThreads * sizeof(uint64_t*));
+	uint32_t ** coArr = (uint32_t **)malloc(numThreads * sizeof(uint32_t*));
 	for(int i = 0; i < numThreads; i++)
 	{
-		coArr[i] = (uint64_t*)malloc(hashSize * sizeof(uint64_t));
+		coArr[i] = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
 	}
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(int t = 0; t <fileList.size(); t++)
@@ -87,8 +87,8 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 		ks1 = kseq_init(fp1);
 		uint64_t totalLength = 0;
 		//uint64_t* co = (uint64_t*)malloc(hashSize * sizeof(uint64_t));
-		uint64_t* co = coArr[tid];
-		memset(co, 0LLU, hashSize * sizeof(uint64_t));
+		uint32_t* co = coArr[tid];
+		memset(co, 0LLU, hashSize * sizeof(uint32_t));
 		size_t foundIndex = fileList[t].find_last_of('/');
 		//tmpSketch.fileName = fileList[t].substr(foundIndex+1);
 		tmpSketch.fileName = fileList[t];
@@ -179,7 +179,7 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 
 		}//end while, read the file
 		//coList[t] = co;
-		vector<uint64_t> hashArr;
+		vector<uint32_t> hashArr;
 		for(int k = 0; k < hashSize; k++){
 			if(co[k] != 0){
 				//cerr << co[k] << endl;
@@ -232,8 +232,8 @@ void saveSketches(vector<sketch_t> sketches, string outputFile){
 	for(int i = 0; i < sketchNumber; i++){
 		const char * namePoint = sketches[i].fileName.c_str();
 		fwrite(namePoint, sizeof(char), genomeNameSize[i], fp);
-		uint64_t * curPoint = sketches[i].hashSet.data();
-		fwrite(curPoint, sizeof(uint64_t), hashSetSize[i], fp);
+		uint32_t * curPoint = sketches[i].hashSet.data();
+		fwrite(curPoint, sizeof(uint32_t), hashSetSize[i], fp);
 	}
 	delete genomeNameSize;
 	delete hashSetSize;
@@ -267,13 +267,13 @@ void readSketches(vector<sketch_t>& sketches, string inputFile){
 		//read the hash values in each sketch
 		int curSize = hashSetSize[i];
 		//totalNumber += curSize;
-		uint64_t * curPoint = new uint64_t[curSize];
-		int hashSize = fread(curPoint, sizeof(uint64_t), curSize, fp);
+		uint32_t * curPoint = new uint32_t[curSize];
+		int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
 		if(hashSize != curSize){
 			cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
 			exit(0);
 		}
-		vector<uint64_t> curHashSet(curPoint, curPoint + curSize);
+		vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
 		delete curPoint;
 		sketch_t s;
 		s.fileName = genomeName;
@@ -292,7 +292,7 @@ void printSketches(vector<sketch_t> sketches, string outputFile){
 	for(int i = 0; i < sketches.size(); i++){
 		fprintf(fp, "%s\n", sketches[i].fileName.c_str());
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			fprintf(fp, "%d\t", sketches[i].hashSet[j]);
+			fprintf(fp, "%u\t", sketches[i].hashSet[j]);
 			if(j % 10 == 9) fprintf(fp, "\n");
 		}
 		fprintf(fp, "\n");

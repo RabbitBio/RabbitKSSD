@@ -13,7 +13,7 @@ typedef struct sketch
 	string seqName;
 	string comment;
 	int id;
-	vector<uint64_t> hashSet;
+	vector<uint32_t> hashSet;
 
 } sketch_t;
 

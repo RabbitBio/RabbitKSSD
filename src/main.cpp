@@ -121,17 +121,34 @@ int main(int argc, char * argv[]){
 
 	CLI11_PARSE(app, argc, argv);
 
+	if(app.got_subcommand(info)){
+		cerr << "---run the subcommand: info" << endl;
+		command_info(sketchFile, outputFile);
+		return 0;
+	}
+	else if(app.got_subcommand(merge)){
+		cerr << "---run the subcommand: merge" << endl;
+		command_merge(sketchFile, outputFile, threads);
+		return 0;
+	}
+	else if(app.got_subcommand(sub)){
+		cerr << "---run the subcommand: sub" << endl;
+		command_sub(refSketchFile, querySketchFile, outputFile, threads);
+		return 0;
+	}
+
 	double t1 = get_sec();
 	cerr << "===================time of init parameters is: " << t1 - t0 << endl;
 
 	int kmer_size = 2 * half_k;
 	int * shuffled_dim;
 
-	bool readShuffleFile = true;
-	if(readShuffleFile){
+	if(*sketch_option_L || *alldist_option_L || *dist_option_L){
+		cerr << "---read the shuffle file: " << shuf_file << endl;
 		shuffled_dim = read_shuffle_dim(shuf_file);
 	}
 	else{
+		cerr << "---generate the shuffle file: " << endl;
 		shuffled_dim = generate_shuffle_dim(half_subk);
 	}
 
@@ -141,29 +158,16 @@ int main(int argc, char * argv[]){
 	cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
 
 	if(app.got_subcommand(sketch)){
-		cerr << "run the subcommand: sketch" << endl;
+		cerr << "---run the subcommand: sketch" << endl;
 		command_sketch(refList, outputFile, kssd_parameter, threads);
-
-	}
-	else if(app.got_subcommand(info)){
-		cerr << "run the subcommand: info" << endl;
-		command_info(sketchFile, outputFile);
 	}
 	else if(app.got_subcommand(alldist)){
-		cerr << "run the subcommand: alldist" << endl;
+		cerr << "---run the subcommand: alldist" << endl;
 		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
 	else if(app.got_subcommand(dist)){
-		cerr << "run the subcommand: dist" << endl;
+		cerr << "---run the subcommand: dist" << endl;
 		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
-	}
-	else if(app.got_subcommand(merge)){
-		cerr << "run the subcommand: merge" << endl;
-		command_merge(sketchFile, outputFile, threads);
-	}
-	else if(app.got_subcommand(sub)){
-		cerr << "run the subcommand: sub" << endl;
-		command_sub(refSketchFile, querySketchFile, outputFile, threads);
 	}
 	
 	

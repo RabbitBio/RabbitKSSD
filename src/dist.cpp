@@ -215,7 +215,7 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 
 
 
-setResult_t getJaccard(vector<uint64_t> list1, vector<uint64_t> list2)
+setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2)
 {
 	double jaccard = 1.0;
 	int size0 = list1.size();

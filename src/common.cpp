@@ -16,6 +16,9 @@ double get_sec()
 
 kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shuffled_dim){
 	// init kssd parameters
+	if(half_subk - drlevel < 3){
+		err(errno, "the half_subk -drlevel should at least 3\n current half_subk and drlevel aare: %d and %d respectively", half_subk, drlevel);
+	}
 	kssd_parameter_t parameter;
 	parameter.half_k = half_k;
 	parameter.drlevel = drlevel;
@@ -23,10 +26,12 @@ kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shu
 	parameter.half_outctx_len = half_outctx_len;
 	parameter.rev_add_move = 4 * half_k - 2;
 	parameter.kmer_size = 2 * half_k;
-	
+
+	int dim_end = 1 << 4 * (half_subk - drlevel);
 	parameter.dim_start = 0;
-	parameter.dim_end = MIN_SUBCTX_DIM_SMP_SZ;
-	int hashSize = get_hashSize(half_k, drlevel);
+	//parameter.dim_end = MIN_SUBCTX_DIM_SMP_SZ;
+	parameter.dim_end = dim_end;
+	unsigned int hashSize = get_hashSize(half_k, drlevel);
 	parameter.hashSize = hashSize;
 	parameter.hashLimit = hashSize * LD_FCTR;
 	parameter.shuffled_dim = shuffled_dim;
@@ -53,11 +58,14 @@ kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shu
 }
 
 
-int get_hashSize(int half_k, int drlevel)
+unsigned int get_hashSize(int half_k, int drlevel)
 {
 	int dim_reduce_rate = 1 << 4 * drlevel;
 	uint64_t ctx_space_sz = 1LLU << 4 * (half_k - drlevel);
 	int primer_id = 4 * (half_k - drlevel) - CTX_SPC_USE_L - 7;
+	//std::cerr << "========================================================the half_k is: " << half_k << std::endl;
+	//std::cerr << "========================================================the drlevel is: " << drlevel << std::endl;
+	//std::cerr << "========================================================the primer_id is: " << primer_id << std::endl;
 	if(primer_id < 0 || primer_id > 24)
 	{
 		int k_add = primer_id < 0 ? (1 + (0 - primer_id) / 4) : -1 * (1 + (primer_id - 24) / 4);
@@ -71,7 +79,7 @@ int get_hashSize(int half_k, int drlevel)
 								primer_id, half_k, drlevel, ctx_space_sz, half_k + k_add);
 
 	}
-	int hashSize = primer[primer_id];
+	unsigned int hashSize = primer[primer_id];
 	fprintf(stderr, "dimension reduced %d\n"
 									"ctx_space size  %llu\n"
 									"half_k is: %d\n"
