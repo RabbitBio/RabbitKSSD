@@ -20,7 +20,7 @@ endif()
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_FLAGS "-g -O3 -lz ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-g -O3 -march=native -lz ${CMAKE_CXX_FLAGS}")
 
 
 if(USE_DEBUG)

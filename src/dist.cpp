@@ -3,6 +3,12 @@
 #include <cstdio>
 #include <math.h>
 #include <sys/stat.h>
+#include <immintrin.h>
+
+int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3);
+int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b);
+setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
+setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
 void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
 	double t0 = get_sec();
@@ -22,7 +28,8 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 		int tid = omp_get_thread_num();
 		for(int j = i+1; j < sketches.size(); j++)
 		{
-			setResult_t tmpResult = getJaccard(sketches[i].hashSet, sketches[j].hashSet);
+			//setResult_t tmpResult = getJaccard(sketches[i].hashSet, sketches[j].hashSet);
+			setResult_t tmpResult = vgetJaccard(sketches[i].hashSet, sketches[j].hashSet);
 			double jaccard = tmpResult.jaccard;
 			int common = tmpResult.common;
 			int size0 = tmpResult.size0;
@@ -113,7 +120,8 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 			int tid = omp_get_thread_num();
 			for(int j = 0; j < querySize; j++)
 			{
-				setResult_t tmpResult = getJaccard(ref_sketches[i].hashSet, query_sketches[j].hashSet);
+				//setResult_t tmpResult = getJaccard(ref_sketches[i].hashSet, query_sketches[j].hashSet);
+				setResult_t tmpResult = vgetJaccard(ref_sketches[i].hashSet, query_sketches[j].hashSet);
 				double jaccard = tmpResult.jaccard;
 				int common = tmpResult.common;
 				int size0 = tmpResult.size0;
@@ -246,6 +254,129 @@ setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2)
 	return result;
 }
 
+setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2)
+{
+	int size1 = list1.size();
+	int size2 = list2.size();
+	int common = u32_intersect_vector_avx2(list1.data(), size1, list2.data(), size2, size1+size2);
+	int denom = size1 + size2 - common;
+	double jaccard = (double)common / denom;
+	setResult_t result{common, size1, size2, jaccard};
+
+	return result;
+}
+
+
+int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b){
+    uint64_t counter=0;
+    const uint32_t *end1 = list1+size1, *end2 = list2+size2;
+    a = 0;
+    b = 0;
+    while(list1 != end1 && list2 != end2 ){
+        if(*list1 < *list2){
+            list1++;
+            a++;
+            size3--;
+        }else if(*list1 > *list2){
+            list2++; 
+            b++;
+            size3--;
+        }else{
+            //result[counter++] = *list1;
+            counter++;
+            list1++; list2++; 
+            a++;
+            b++;
+            size3--;
+        }
+        if(size3 == 0) break;
+    }
+    return counter;
+}
+
+int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3){
+    //assert(size3 <= size1 + size2);
+    int count=0;
+		//int a, b;
+		int a = 0; 
+		int b = 0;
+		//int *i_a = &a;
+		//int *i_b = &b;
+		////int * i_a, * i_b;
+    //*i_a = 0;
+    //*i_b = 0;
+    uint64_t st_a = (size1 / 8) * 8;
+    uint64_t st_b = (size2 / 8) * 8;
+
+    int i_a_s, i_b_s;
+
+    if(size3 <= 16){
+        count += u32_intersect_scalar_stop(list1, size1, list2, size2, size3, a, b);
+        return count;
+    }
+
+    uint64_t stop = size3 - 16;
+    while(a < st_a && b < st_b){
+
+        uint32_t a_max = list1[a+7];
+        uint32_t b_max = list2[b+7];
+
+        __m256i v_a = _mm256_loadu_si256((__m256i*)&(list1[a]));
+        __m256i v_b = _mm256_loadu_si256((__m256i*)&(list2[b]));
+
+        a += (a_max <= b_max) * 8;
+        b += (a_max >= b_max) * 8;
+
+
+        /*constexpr*/ const int32_t cyclic_shift = _MM_SHUFFLE(0,3,2,1); //rotating right
+        /*constexpr*/ const int32_t cyclic_shift2= _MM_SHUFFLE(2,1,0,3); //rotating left
+        /*constexpr*/ const int32_t cyclic_shift3= _MM_SHUFFLE(1,0,3,2); //between
+        __m256i cmp_mask1 = _mm256_cmpeq_epi32(v_a, v_b);
+        __m256 rot1 = _mm256_permute_ps((__m256)v_b, cyclic_shift);
+        __m256i cmp_mask2 = _mm256_cmpeq_epi32(v_a, (__m256i)rot1);
+        __m256 rot2 = _mm256_permute_ps((__m256)v_b, cyclic_shift3);
+        __m256i cmp_mask3 = _mm256_cmpeq_epi32(v_a, (__m256i)rot2);
+        __m256 rot3 = _mm256_permute_ps((__m256)v_b, cyclic_shift2);
+        __m256i cmp_mask4 = _mm256_cmpeq_epi32(v_a, (__m256i)rot3);
+
+        __m256 rot4 = _mm256_permute2f128_ps((__m256)v_b, (__m256)v_b, 1);
+
+        __m256i cmp_mask5 = _mm256_cmpeq_epi32(v_a, (__m256i)rot4);
+        __m256 rot5 = _mm256_permute_ps(rot4, cyclic_shift);
+        __m256i cmp_mask6 = _mm256_cmpeq_epi32(v_a, (__m256i)rot5);
+        __m256 rot6 = _mm256_permute_ps(rot4, cyclic_shift3);
+        __m256i cmp_mask7 = _mm256_cmpeq_epi32(v_a, (__m256i)rot6);
+        __m256 rot7 = _mm256_permute_ps(rot4, cyclic_shift2);
+        __m256i cmp_mask8 = _mm256_cmpeq_epi32(v_a, (__m256i)rot7);
+
+        __m256i cmp_mask = _mm256_or_si256(
+                _mm256_or_si256(
+                    _mm256_or_si256(cmp_mask1, cmp_mask2),
+                    _mm256_or_si256(cmp_mask3, cmp_mask4)
+                    ),
+                _mm256_or_si256(
+                    _mm256_or_si256(cmp_mask5, cmp_mask6),
+                    _mm256_or_si256(cmp_mask7, cmp_mask8)
+                    )
+                );
+        int32_t mask = _mm256_movemask_ps((__m256)cmp_mask);
+
+        count += _mm_popcnt_u32(mask);
+
+        //if(*i_a + *i_b - count >= stop){
+        //    //count -= _mm_popcnt_u32(cmp0);
+        //    //*i_a -= (a_max <= b_max) * 16;
+        //    //*i_b -= (a_max >= b_max) * 16;
+        //    break;
+        //}
+
+    }
+    count += u32_intersect_scalar_stop(list1+a, size1-a, list2+b, size2-b, size3 - (a+b - count), i_a_s, i_b_s);
+
+    a += i_a_s;
+    b += i_b_s;
+    return count;
+}
 
 
 
