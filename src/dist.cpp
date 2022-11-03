@@ -52,7 +52,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 		fclose(fpArr[i]);
 	}
 	double t1 = get_sec();
-	cerr << "the time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
+	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
 
 	struct stat cof_stat;
 	FILE * cofp;
@@ -93,7 +93,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 	free(bufRead);
 	fclose(com_cofp);
 	double t2 = get_sec();
-	cerr << "the time of merge the subFiles into final files is: " << t2 - t1 << endl;
+	cerr << "===================time of merge the subFiles into final files is: " << t2 - t1 << endl;
 
 }
 
@@ -171,7 +171,7 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 		fclose(fpArr[i]);
 	}
 	double t1 = get_sec();
-	cerr << "the time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
+	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
 
 	struct stat cof_stat;
 	FILE * cofp;
@@ -212,14 +212,8 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 	free(bufRead);
 	fclose(com_cofp);
 	double t2 = get_sec();
-	cerr << "the time of merge the subFiles into final files is: " << t2 - t1 << endl;
-
+	cerr << "===================time of merge the subFiles into final files is: " << t2 - t1 << endl;
 }
-
-
-
-
-
 
 
 

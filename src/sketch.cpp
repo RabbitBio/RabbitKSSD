@@ -6,6 +6,8 @@
 #include <fstream>
 #include <cstdlib>
 #include <algorithm>
+#include <unordered_map>
+#include "robin_hood.h"
 
 KSEQ_INIT(gzFile, gzread);
 
@@ -46,6 +48,19 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 	uint64_t undomask0 = parameter.undomask0;
 	uint64_t undomask1 = parameter.undomask1;
 	uint64_t domask = parameter.domask;
+
+	int dim_size = 1 << 4 * (half_k - half_outctx_len);
+	robin_hood::unordered_map<uint32_t, int> shuffled_map;
+	for(int t = 0; t < dim_size; t++){
+		if(shuffled_dim[t] < dim_end && shuffled_dim[t] >= dim_start){
+			shuffled_map.insert({t, shuffled_dim[t]});
+		}
+		//cout << shuffled_dim[t] << endl;
+	}
+
+	//cerr << "the size of shuffled_map is: " << shuffled_map.size() << endl;
+	//exit(0);
+	
 	//cerr << "hash size is: " << hashSize << endl;
 	//exit(0);
 	//printf("tupmask: %lx\n", tupmask);
@@ -63,8 +78,8 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 	while(getline(fs, fileName)){
 		fileList.push_back(fileName);
 	}
-	cerr << "the size of fileList is: " << fileList.size() << endl;
-	cerr << "the numThreads is: " << numThreads << endl;
+	//cerr << "the size of fileList is: " << fileList.size() << endl;
+	//cerr << "the numThreads is: " << numThreads << endl;
 
 	uint32_t ** coArr = (uint32_t **)malloc(numThreads * sizeof(uint32_t*));
 	for(int i = 0; i < numThreads; i++)
@@ -125,7 +140,8 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 				{
 					uni_tuple = tuple < rvs_tuple ? tuple : rvs_tuple;
 					int dim_id = (uni_tuple & domask) >> (half_outctx_len * 2);
-					pfilter = shuffled_dim[dim_id];
+					//pfilter = shuffled_dim[dim_id];
+
 					//printf("\n");
 					//cout  << "the pfilter is: " << pfilter << endl;
 					//cout << "the basenum is: " << basenum << endl;
@@ -137,9 +153,15 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 					//printf("\n");
 					//exit(0);
 
-					if((pfilter >= dim_end) || (pfilter < dim_start)){
+					//if((pfilter >= dim_end) || (pfilter < dim_start)){
+					//	continue;
+					//}
+					
+					if(shuffled_map.count(dim_id) == 0){
 						continue;
 					}
+					pfilter = shuffled_map[dim_id];
+
 					pfilter -= dim_start;
 					//dr_tuple = (((uni_tuple & undomask0) + ((uni_tuple & undomask1) << (kmer_size * 2 - half_outctx_len * 4))) >> (drlevel * 4)) + pfilter; 
 					////only when the dim_end is 4096(the pfilter is 12bit in binary and the lowerst 12bit is all 0 
@@ -184,9 +206,6 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 			if(co[k] != 0){
 				//cerr << co[k] << endl;
 				hashArr.push_back(co[k]);
-				#ifdef DIST_INDEX
-				hash_index_arr[tid][co[k]].push_back(t);
-				#endif
 			}
 		}
 		tmpSketch.id = t;
@@ -199,6 +218,9 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 		#pragma omp critical
 		{
 			sketches.push_back(tmpSketch);
+			if(t % 10000 == 0){
+				cerr << "finshed sketching: " << t << " genomes" << endl;
+			}
 		}
 
 	}//end for, the fileList
@@ -243,7 +265,7 @@ void readSketches(vector<sketch_t>& sketches, string inputFile){
 	FILE * fp = fopen(inputFile.c_str(), "rb+");
 	int sketchNumber;
 	fread(&sketchNumber, sizeof(int), 1, fp);
-	cerr << "sketchNumber is: " << sketchNumber << endl;
+	//cerr << "sketchNumber is: " << sketchNumber << endl;
 	int * genomeNameSize = new int[sketchNumber];
 	int * hashSetSize = new int[sketchNumber];
 	fread(genomeNameSize, sizeof(int), sketchNumber, fp);
@@ -286,11 +308,20 @@ void readSketches(vector<sketch_t>& sketches, string inputFile){
 
 }
 
+void printInfos(vector<sketch_t> sketches, string outputFile){
+	FILE * fp = fopen(outputFile.c_str(), "w+");
+	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
+	for(int i = 0; i < sketches.size(); i++){
+		fprintf(fp, "%s\t%d\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
+	}
+	fclose(fp);
+}
+
 void printSketches(vector<sketch_t> sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
 	for(int i = 0; i < sketches.size(); i++){
-		fprintf(fp, "%s\n", sketches[i].fileName.c_str());
+		fprintf(fp, "%s\t%d\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
 			fprintf(fp, "%u\t", sketches[i].hashSet[j]);
 			if(j % 10 == 9) fprintf(fp, "\n");

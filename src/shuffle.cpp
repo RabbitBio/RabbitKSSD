@@ -15,9 +15,9 @@ int * read_shuffle_dim(string shuffle_file){
 	shuffled_dim = (int*) malloc(sizeof(int) * dim_size);
 	fread(shuffled_dim, sizeof(int) * dim_size, 1, shuf_in);
 	fprintf(stderr, "read from %s\n", shuffle_file.c_str());
-	fprintf(stderr, "\tthe half_k is: %d\n", dim_shuffle->dim_shuffle_stat.k);
+	//fprintf(stderr, "\tthe half_k is: %d\n", dim_shuffle->dim_shuffle_stat.k);
 	fprintf(stderr, "\tthe half_subk is: %d\n", dim_shuffle->dim_shuffle_stat.subk);
-	fprintf(stderr, "\tthe drlevel is: %d\n", dim_shuffle->dim_shuffle_stat.drlevel);
+	//fprintf(stderr, "\tthe drlevel is: %d\n", dim_shuffle->dim_shuffle_stat.drlevel);
 
 	//printf("print the shuffle_dim : \n");
 	//for(int i = 0; i < dim_size; i++)

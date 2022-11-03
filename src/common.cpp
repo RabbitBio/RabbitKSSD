@@ -80,12 +80,12 @@ unsigned int get_hashSize(int half_k, int drlevel)
 
 	}
 	unsigned int hashSize = primer[primer_id];
-	fprintf(stderr, "dimension reduced %d\n"
-									"ctx_space size  %llu\n"
-									"half_k is: %d\n"
-									"drlevel is: %d\n"
-									"primer_id is: %d\n"
-									"hashSize is: %u \n",
+	fprintf(stderr, "\tdimension reduced %d\n"
+									"\tctx_space size  %llu\n"
+									"\thalf_k is: %d\n"
+									"\tdrlevel is: %d\n"
+									"\tprimer_id is: %d\n"
+									"\thashSize is: %u \n",
 									dim_reduce_rate, ctx_space_sz, half_k, drlevel, primer_id, hashSize);
 	
 	return hashSize;

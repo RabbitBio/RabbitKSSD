@@ -22,4 +22,5 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 void saveSketches(vector<sketch_t> sketches, string outputFile);
 void readSketches(vector<sketch_t>& sketches, string inputFile);
 void printSketches(vector<sketch_t> sketches, string outputFile);
+void printInfos(vector<sketch_t> sketches, string outputFile);
 #endif

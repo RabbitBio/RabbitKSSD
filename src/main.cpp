@@ -10,7 +10,6 @@
 
 #include "shuffle.h"
 #include "common.h"
-#include "parameter.h"
 #include "sketch.h"
 #include "dist.h"
 #include "subCommand.h"
@@ -122,54 +121,87 @@ int main(int argc, char * argv[]){
 	CLI11_PARSE(app, argc, argv);
 
 	if(app.got_subcommand(info)){
-		cerr << "---run the subcommand: info" << endl;
+		cerr << "-----run the subcommand: info" << endl;
 		command_info(sketchFile, outputFile);
 		return 0;
 	}
 	else if(app.got_subcommand(merge)){
-		cerr << "---run the subcommand: merge" << endl;
+		cerr << "-----run the subcommand: merge" << endl;
 		command_merge(sketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(sub)){
-		cerr << "---run the subcommand: sub" << endl;
+		cerr << "-----run the subcommand: sub" << endl;
 		command_sub(refSketchFile, querySketchFile, outputFile, threads);
 		return 0;
 	}
 
 	double t1 = get_sec();
-	cerr << "===================time of init parameters is: " << t1 - t0 << endl;
+	//cerr << "===================time of init parameters is: " << t1 - t0 << endl;
 
 	int kmer_size = 2 * half_k;
 	int * shuffled_dim;
+	
+	//if(*sketch_option_L || *alldist_option_L || *dist_option_L){
+	//	cerr << "---read the shuffle file: " << shuf_file << endl;
+	//	shuffled_dim = read_shuffle_dim(shuf_file);
+	//}
+	//else{
+	//	cerr << "---generate the shuffle file: " << endl;
+	//	shuffled_dim = generate_shuffle_dim(half_subk);
+	//}
 
-	if(*sketch_option_L || *alldist_option_L || *dist_option_L){
-		cerr << "---read the shuffle file: " << shuf_file << endl;
-		shuffled_dim = read_shuffle_dim(shuf_file);
-	}
-	else{
-		cerr << "---generate the shuffle file: " << endl;
-		shuffled_dim = generate_shuffle_dim(half_subk);
-	}
+	//kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 
-	kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
-
-	double t2 = get_sec();
-	cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
+	//double t2 = get_sec();
+	//cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
 
 	if(app.got_subcommand(sketch)){
-		cerr << "---run the subcommand: sketch" << endl;
+		cerr << "-----run the subcommand: sketch" << endl;
+		if(*sketch_option_L){
+			cerr << "---read the shuffle file: " << shuf_file << endl;
+			shuffled_dim = read_shuffle_dim(shuf_file);
+		}
+		else{
+			cerr << "---generate the shuffle file: " << endl;
+			shuffled_dim = generate_shuffle_dim(half_subk);
+		}
+		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+
 		command_sketch(refList, outputFile, kssd_parameter, threads);
 	}
 	else if(app.got_subcommand(alldist)){
-		cerr << "---run the subcommand: alldist" << endl;
+		cerr << "-----run the subcommand: alldist" << endl;
+		kssd_parameter_t kssd_parameter;
+		if(!isSketchFile(refList)){
+			if(*alldist_option_L){
+				cerr << "---read the shuffle file: " << shuf_file << endl;
+				shuffled_dim = read_shuffle_dim(shuf_file);
+			}
+			else{
+				cerr << "---generate the shuffle file: " << endl;
+				shuffled_dim = generate_shuffle_dim(half_subk);
+			}
+			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+		}
 		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
 	else if(app.got_subcommand(dist)){
-		cerr << "---run the subcommand: dist" << endl;
+		cerr << "-----run the subcommand: dist" << endl;
+		kssd_parameter_t kssd_parameter;
+		if(!isSketchFile(refList) || !isSketchFile(queryList)){
+			if(*dist_option_L){
+				cerr << "---read the shuffle file: " << shuf_file << endl;
+				shuffled_dim = read_shuffle_dim(shuf_file);
+			}
+			else{
+				cerr << "---generate the shuffle file: " << endl;
+				shuffled_dim = generate_shuffle_dim(half_subk);
+			}
+			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+		}
 		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
 	}
-	
 	
 	return 0;
 }
