@@ -33,7 +33,9 @@ bool isSketchFile(string inputFile){
 	else return false;
 }
 
-bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches){
+inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, string dictFile, string indexFile);
+
+bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
 	int half_k = parameter.half_k;
 	int drlevel = parameter.drlevel;
 	int rev_add_move = parameter.rev_add_move;
@@ -227,12 +229,66 @@ bool sketchFile(string inputFile, int numThreads, kssd_parameter_t parameter, ve
 
 	std::sort(sketches.begin(), sketches.end(), cmpSketch);
 
+	if(!isSketchFile(outputFile)){
+		outputFile = outputFile + ".sketch";
+	}
+	saveSketches(sketches, outputFile);
+	cerr << "save the sketches into: " << outputFile << endl;
+
+	if(isReference){
+		double tstart = get_sec();
+		string dictFile = outputFile + ".dict";
+		string indexFile = outputFile + ".index";
+		transSketches(sketches, half_k, drlevel, dictFile, indexFile);
+		double tend = get_sec();
+		cerr << "===============the time of transSketches is: " << tend - tstart << endl;
+	}
+
 	return true;
+
+}
+
+inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, string dictFile, string indexFile){
+	size_t hashSize = 1 << (4 * (half_k - drlevel));
+	vector<vector<int>> hashMapId;
+	hashMapId.resize(hashSize);
+	int * offsetArr = (int*)malloc(hashSize * sizeof(int));
+
+	cerr << "the hashSize is: " << hashSize << endl;
+	cerr << "start the hashMapId " << endl;
+	for(int i = 0; i < sketches.size(); i++){
+		for(int j = 0; j < sketches[i].hashSet.size(); j++){
+			int hash = sketches[i].hashSet[j];
+			//cerr << "the hash: " << hash << endl;
+			hashMapId[hash].emplace_back(i);
+		}
+	}
+	cerr << "finish the hashMapId " << endl;
+
+	FILE * fp0 = fopen(dictFile.c_str(), "w+");
+	uint64_t totalIndex = 0;
+	for(size_t i = 0; i < hashSize; i++){
+		offsetArr[i] = hashMapId[i].size();
+		if(hashMapId[i].size() != 0){
+			fwrite(hashMapId[i].data(), sizeof(int), hashMapId[i].size(), fp0);
+			totalIndex += hashMapId[i].size();
+		}
+	}
+	fclose(fp0);
+	FILE * fp1 = fopen(indexFile.c_str(), "w+");
+	fwrite(&hashSize, sizeof(size_t), 1, fp1);
+	fwrite(&totalIndex, sizeof(uint64_t), 1, fp1);
+	fwrite(offsetArr, sizeof(int), hashSize, fp1);
+	fclose(fp1);
+	cerr << "finshed the dictionary generation of the hash values" << endl;
+	cerr << "the hashSize is: " << hashSize << endl;
+	cerr << "the totalIndex is: " << totalIndex << endl;
 
 }
 
 
 void saveSketches(vector<sketch_t> sketches, string outputFile){
+
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	int sketchNumber = sketches.size();
 	int * genomeNameSize = new int[sketchNumber];
@@ -259,6 +315,8 @@ void saveSketches(vector<sketch_t> sketches, string outputFile){
 	}
 	delete genomeNameSize;
 	delete hashSetSize;
+
+
 }
 
 void readSketches(vector<sketch_t>& sketches, string inputFile){
@@ -296,7 +354,7 @@ void readSketches(vector<sketch_t>& sketches, string inputFile){
 			exit(0);
 		}
 		vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
-		delete curPoint;
+		delete [] curPoint;
 		sketch_t s;
 		s.fileName = genomeName;
 		s.id = i;
