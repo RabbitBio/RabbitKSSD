@@ -39,13 +39,12 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 		bool success = sketchFile(refList, true, threads, kssd_parameter, sketches, refSketchOut);
 		t3 = get_sec();
 		cerr << "===================time of computing sketches and save sketches into file is " << t3 - t2 << endl;
-		//cerr << "finish the sketch generation " << success << endl;
 	}
 	//cerr << "the size of sketches is: " << sketches.size() << endl;
 
 	//compute the pair distance
 	//tri_dist(sketches, outputFile, kmer_size, maxDist, threads);
-	index_dist(sketches, refSketchOut, outputFile, kmer_size, maxDist, threads);
+	index_tridist(sketches, refSketchOut, outputFile, kmer_size, maxDist, threads);
 
 }
 
@@ -53,40 +52,39 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int threads){
 	double t2 = get_sec();
 	double t3, t4;
+	string refSketchOut, querySketchOut;
 	vector<sketch_t> ref_sketches;
 	if(isSketchFile(refList)){
+		refSketchOut = refList;
 		readSketches(ref_sketches, refList);
 		t3 = get_sec();
 		cerr << "===================time of read reference sketches from " << refList << " is: " << t3 - t2 << endl;
 	}
 	else{
-		string refHashOut = refList + ".sketch";
-		bool success0 = sketchFile(refList, true, threads, kssd_parameter, ref_sketches, refHashOut);
+		refSketchOut = refList + ".sketch";
+		bool success0 = sketchFile(refList, true, threads, kssd_parameter, ref_sketches, refSketchOut);
 		t3 = get_sec();
-		cerr << "===================time of computing reference sketches and save sketches into " << refHashOut << " is: " << t3 - t2 << endl;
-		//cerr << "finish the ref_sketches generation " << success0 << endl;
+		cerr << "===================time of computing reference sketches and save sketches into " << refSketchOut << " is: " << t3 - t2 << endl;
 	}
 	//cerr << "the size of ref_sketches is: " << ref_sketches.size() << endl;
 
 	vector<sketch_t> query_sketches;
 	if(isSketchFile(queryList)){
+		querySketchOut = queryList;
 		readSketches(query_sketches, queryList);
 		t4 = get_sec();
 		cerr << "===================time of read query sketches from " << queryList << " is: " << t4 - t3 << endl;
 	}
 	else{
-		string queryHashOut = queryList + ".sketch";
-		bool success1 = sketchFile(queryList, false, threads, kssd_parameter, query_sketches, queryHashOut);
+		querySketchOut = queryList + ".sketch";
+		bool success1 = sketchFile(queryList, false, threads, kssd_parameter, query_sketches, querySketchOut);
 		t4 = get_sec();
-		cerr << "===================time of computing query sketches and save sketches into " << queryHashOut << " is: " << t4 - t3 << endl;
-		//cerr << "finish the query_sketches generation " << success1 << endl;
+		cerr << "===================time of computing query sketches and save sketches into " << querySketchOut << " is: " << t4 - t3 << endl;
 	}
 	//cerr << "the size of query_sketches is: " << query_sketches.size() << endl;
 
-
-	//compute the pair distance
-	
-	dist(ref_sketches, query_sketches, outputFile, kmer_size, maxDist, threads);
+	//dist(ref_sketches, query_sketches, outputFile, kmer_size, maxDist, threads);
+	index_dist(ref_sketches, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, threads);
 
 	//double t5 = get_sec();
 	//cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
