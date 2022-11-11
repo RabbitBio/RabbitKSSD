@@ -18,14 +18,6 @@ setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
 void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int numThreads){
 
-	size_t page_size = sysconf(_SC_PAGESIZE);
-	size_t num_pages = sysconf(_SC_PHYS_PAGES);
-	size_t total_memory = page_size * num_pages;
-	//size_t limit_memory = total_memory / 2;
-	size_t betterSize = (size_t) 1 << 31;
-	size_t limit_memory = std::min(betterSize, total_memory / 2);
-	size_t limit_size = limit_memory / sizeof(int);
-
 	string indexFile = refSketchOut + ".index";
 	string dictFile = refSketchOut + ".dict";
 	size_t hashSize;
@@ -59,37 +51,10 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 
 	double t0 = get_sec();
 	size_t numRef = sketches.size();
-	size_t numQuery = sketches.size();
-	size_t distSize = numRef * numQuery;
-	size_t num_parts = 1;
-	size_t numQuery_eachPart = numQuery;
-	size_t numQuery_remain = 0;
-	if(distSize <= limit_size){
-		num_parts = 1;
-		numQuery_eachPart = numQuery;
-		numQuery_remain = 0;
-	}
-	else{
-		numQuery_eachPart = limit_size / numRef;
-		num_parts	= numQuery / numQuery_eachPart;
-		numQuery_remain = numQuery % numQuery_eachPart;
-	}
-	size_t partSize = numQuery_eachPart * numRef;
-	cerr << "the numRef is: " << numRef << endl;
-	cerr << "the distSize is: " << distSize << endl;
-	cerr << "the limit_size is: " << limit_size << endl;
-	cerr << "the partSize is: " << partSize << endl;
-	cerr << "the num_query is: " << numQuery << endl;
-	cerr << "the num_parts is: " << num_parts << endl;
-	cerr << "the numQuery_eachPart is: " << numQuery_eachPart << endl;
-	cerr << "the numQuery_remain is: " << numQuery_remain << endl;
-	//exit(0);
-
-
-	int * intersection_arr = (int*)malloc(partSize * sizeof(int));
 
 	vector<FILE*> fpArr;
 	vector<string> dist_file_list;
+	vector<int* > intersectionArr;
 	for(int i = 0; i < numThreads; i++)
 	{
 		string tmpName = outputFile + to_string(i);
@@ -97,71 +62,31 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 
 		FILE * fp0 = fopen(tmpName.c_str(), "w");
 		fpArr.push_back(fp0);
+		int * arr = (int*)malloc(numRef * sizeof(int));
+		intersectionArr.push_back(arr);
 	}
 	
 	cerr << "before generate the interaection " << endl;
 	double tt1 = get_sec();
-
-	for(int it = 0; it < num_parts; it++){
-		memset(intersection_arr, 0, partSize * sizeof(int));
-		#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-		for(size_t i = 0; i < numQuery_eachPart; i++){
-			size_t dist_offset = i * numRef;
-			size_t qid = it * numQuery_eachPart + i;
-			for(size_t j = 0; j < sketches[qid].hashSet.size(); j++){
-				int hash = sketches[qid].hashSet[j];
-				//if(hash > hashSize) cerr << "hash: " << hash << " hashSize: " << hashSize << endl;
-				if(sketchSizeArr[hash] == 0) continue;
-				int start = hash > 0 ? offset[hash-1] : 0;
-				int end = offset[hash];
-				//cout << hash << '\t' << start << '\t' << end << endl;;
-				for(size_t k = start; k < end; k++){
-					size_t curIndex = dist_offset + (size_t)indexArr[k];
-					intersection_arr[curIndex]++;
-				}
-			}
-			int tid = omp_get_thread_num();
-			for(size_t j = qid+1; j < numRef; j++){
-				int common = intersection_arr[dist_offset + j];
-				int size0 = sketches[qid].hashSet.size();
-				int size1 = sketches[j].hashSet.size();
-				int denom = size0 + size1 - common;
-				double jaccard = (double)common / denom;
-				double mashD;
-				if(jaccard == 1.0)
-					mashD = 0.0;
-				else if(jaccard == 0.0)
-					mashD = 1.0;
-				else
-					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[qid].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
-			}
-		}
-
-	}//end for numParts
-
-	memset(intersection_arr, 0, partSize * sizeof(int));
+	
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(size_t i = 0; i < numQuery_remain; i++){
-		size_t dist_offset = i * numRef;
-		size_t qid = num_parts * numQuery_eachPart + i;
-		for(size_t j = 0; j < sketches[qid].hashSet.size(); j++){
-			int hash = sketches[qid].hashSet[j];
-			//if(hash > hashSize) cerr << "hash: " << hash << " hashSize: " << hashSize << endl;
+	for(size_t i = 0; i < numRef; i++){
+		int tid = omp_get_thread_num();
+		memset(intersectionArr[tid], 0, numRef * sizeof(int));
+		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
+			int hash = sketches[i].hashSet[j];
 			if(sketchSizeArr[hash] == 0) continue;
 			int start = hash > 0 ? offset[hash-1] : 0;
 			int end = offset[hash];
-			//cout << hash << '\t' << start << '\t' << end << endl;;
 			for(size_t k = start; k < end; k++){
-				size_t curIndex = dist_offset + (size_t)indexArr[k];
-				intersection_arr[curIndex]++;
+				size_t curIndex = indexArr[k];
+				intersectionArr[tid][curIndex]++;
 			}
 		}
-		int tid = omp_get_thread_num();
-		for(size_t j = qid+1; j < numRef; j++){
-			int common = intersection_arr[dist_offset + j];
-			int size0 = sketches[qid].hashSet.size();
+
+		for(size_t j = i+1; j < numRef; j++){
+			int common = intersectionArr[tid][j];
+			int size0 = sketches[i].hashSet.size();
 			int size1 = sketches[j].hashSet.size();
 			int denom = size0 + size1 - common;
 			double jaccard = (double)common / denom;
@@ -173,9 +98,10 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 			else
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[qid].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
 		}
 	}
+
 
 	cerr << "finished multithread computing" << endl;
 
@@ -184,7 +110,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 		fclose(fpArr[i]);
 	}
 	cerr << "finished fpArr fclose" << endl;
-	free(intersection_arr);
+	//free(intersection_arr);
 
 	double t1 = get_sec();
 	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
@@ -271,14 +197,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 	for(int i = 0; i < numThreads; i++)
 	{
 		cofp = fopen(dist_file_list[i].c_str(), "rb+");
-		//if((cofp = fopen(dist_file_list[i].c_str(), "r") == NULL)){
-		//	err(errno,"cannot open %s\n", dist_file_list[i].c_str());
-		//}
 
-		//stat(dist_file_list[i].c_str(), &cof_stat);
-		//uint64_t tmpSize = cof_stat.st_size;
-		//cerr << "the size of " << dist_file_list[i] << " is: " << tmpSize << endl;
-		//char * tmpco = (char*)malloc((tmpSize+1) * sizeof(char));
 		while(1)
 		{
 			lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
@@ -289,11 +208,6 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 		fclose(cofp);
 
 		remove(dist_file_list[i].c_str());
-
-		//fread(tmpco, sizeof(char), tmpSize, cofp);
-		//fwrite(tmpco, sizeof(char), tmpSize, com_cofp);
-		//fclose(cofp);
-		//free(tmpco);
 	}
 
 	free(bufRead);
@@ -304,15 +218,6 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 }
 
 void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
-
-	size_t page_size = sysconf(_SC_PAGESIZE);
-	size_t num_pages = sysconf(_SC_PHYS_PAGES);
-	size_t total_memory = page_size * num_pages;
-	//size_t limit_memory = total_memory / 2;
-	size_t betterSize = (size_t) 1 << 31;
-	size_t limit_memory = std::min(betterSize, total_memory / 2);
-	size_t limit_size = limit_memory / sizeof(int);
-
 	string refIndexFile = refSketchOut + ".index";
 	string refDictFile = refSketchOut + ".dict";
 	size_t refHashSize;
@@ -346,105 +251,42 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	double t0 = get_sec();
 	size_t numRef = ref_sketches.size();
 	size_t numQuery = query_sketches.size();
-	size_t distSize = numRef * numQuery;
-	size_t num_parts = 1;
-	size_t numQuery_eachPart = numQuery;
-	size_t numQuery_remain = 0;
-	if(distSize <= limit_size){
-		num_parts = 1;
-		numQuery_eachPart = numQuery;
-		numQuery_remain = 0;
-	}
-	else{
-		numQuery_eachPart = limit_size / numRef;
-		num_parts	= numQuery / numQuery_eachPart;
-		numQuery_remain = numQuery % numQuery_eachPart;
-	}
-	size_t partSize = numQuery_eachPart * numRef;
-	cerr << "the numRef is: " << numRef << endl;
-	cerr << "the distSize is: " << distSize << endl;
-	cerr << "the limit_size is: " << limit_size << endl;
-	cerr << "the partSize is: " << partSize << endl;
-	cerr << "the num_query is: " << numQuery << endl;
-	cerr << "the num_parts is: " << num_parts << endl;
-	cerr << "the numQuery_eachPart is: " << numQuery_eachPart << endl;
-	cerr << "the numQuery_remain is: " << numQuery_remain << endl;
-
-	int * intersection_arr = (int*)malloc(partSize * sizeof(int));
 
 	vector<FILE*> fpArr;
 	vector<string> dist_file_list;
+	vector<int*> intersectionArr;
 	for(int i = 0; i < numThreads; i++)
 	{
 		string tmpName = outputFile + to_string(i);
 		dist_file_list.push_back(tmpName);
-
 		FILE * fp0 = fopen(tmpName.c_str(), "w");
 		fpArr.push_back(fp0);
+		int * arr = (int*)malloc(numRef * sizeof(int));
+		intersectionArr.push_back(arr);
 	}
-	
-	cerr << "before generate the interaection " << endl;
+	cerr << "before generate the intersection " << endl;
 	double tt1 = get_sec();
-	for(int it = 0; it < num_parts; it++){
-		memset(intersection_arr, 0, partSize * sizeof(int));
-		#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-		for(size_t i = 0; i < numQuery_eachPart; i++){
-			size_t dist_offset = i * numRef;
-			size_t qid = it * numQuery_eachPart + i;
-			for(size_t j = 0; j < query_sketches[qid].hashSet.size(); j++){
-				int hash = query_sketches[qid].hashSet[j];
-				//if(hash > hashSize) cerr << "hash: " << hash << " hashSize: " << hashSize << endl;
-				if(refSketchSizeArr[hash] == 0) continue;
-				int start = hash > 0 ? refOffset[hash-1] : 0;
-				int end = refOffset[hash];
-				//cout << hash << '\t' << start << '\t' << end << endl;;
-				for(size_t k = start; k < end; k++){
-					size_t curIndex = dist_offset + (size_t)refIndexArr[k];
-					intersection_arr[curIndex]++;
-				}
-			}
-			int tid = omp_get_thread_num();
-			for(size_t j = 0; j < numRef; j++){
-				int common = intersection_arr[dist_offset + j];
-				int size0 = query_sketches[qid].hashSet.size();
-				int size1 = ref_sketches[j].hashSet.size();
-				int denom = size0 + size1 - common;
-				double jaccard = (double)common / denom;
-				double mashD;
-				if(jaccard == 1.0)
-					mashD = 0.0;
-				else if(jaccard == 0.0)
-					mashD = 1.0;
-				else
-					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[qid].fileName.c_str(), common, size0, size1, jaccard, mashD);
-			}
-		}
-	}//end for numParts
+
 	
-	memset(intersection_arr, 0, partSize * sizeof(int));
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(size_t i = 0; i < numQuery_remain; i++){
-		size_t dist_offset = i * numRef;
-		size_t qid = num_parts * numQuery_eachPart + i;
-		for(size_t j = 0; j < query_sketches[qid].hashSet.size(); j++){
-			int hash = query_sketches[qid].hashSet[j];
-			//if(hash > hashSize) cerr << "hash: " << hash << " hashSize: " << hashSize << endl;
+	for(int i = 0; i < numQuery; i++){
+		int tid = omp_get_thread_num();
+		memset(intersectionArr[tid], 0, numRef *sizeof(int));
+		for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
+			int hash = query_sketches[i].hashSet[j];
 			if(refSketchSizeArr[hash] == 0) continue;
 			int start = hash > 0 ? refOffset[hash-1] : 0;
 			int end = refOffset[hash];
-			//cout << hash << '\t' << start << '\t' << end << endl;;
 			for(size_t k = start; k < end; k++){
-				size_t curIndex = dist_offset + (size_t)refIndexArr[k];
-				intersection_arr[curIndex]++;
+				size_t curIndex = refIndexArr[k];
+				intersectionArr[tid][curIndex]++;
 			}
 		}
-		int tid = omp_get_thread_num();
+		
 		for(size_t j = 0; j < numRef; j++){
-			int common = intersection_arr[dist_offset + j];
-			int size0 = query_sketches[qid].hashSet.size();
-			int size1 = ref_sketches[j].hashSet.size();
+			int common = intersectionArr[tid][j];
+			int size0 = ref_sketches[j].hashSet.size();
+			int size1 = query_sketches[i].hashSet.size();
 			int denom = size0 + size1 - common;
 			double jaccard = (double)common / denom;
 			double mashD;
@@ -455,19 +297,18 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 			else
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[qid].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 		}
 	}
-
 
 	cerr << "finished multithread computing" << endl;
 
 	for(int i = 0; i < numThreads; i++)
 	{
 		fclose(fpArr[i]);
+		free(intersectionArr[i]);
 	}
 	cerr << "finished fpArr fclose" << endl;
-	free(intersection_arr);
 
 	double t1 = get_sec();
 	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
@@ -496,13 +337,6 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	fclose(com_cofp);
 	double t2 = get_sec();
 	cerr << "===================time of merge the subFiles into final files is: " << t2 - t1 << endl;
-
-
-
-	
-
-
-
 
 }
 
@@ -591,14 +425,6 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 	for(int i = 0; i < numThreads; i++)
 	{
 		cofp = fopen(dist_file_list[i].c_str(), "rb+");
-		//if((cofp = fopen(dist_file_list[i].c_str(), "r") == NULL)){
-		//	err(errno,"cannot open %s\n", dist_file_list[i].c_str());
-		//}
-
-		//stat(dist_file_list[i].c_str(), &cof_stat);
-		//uint64_t tmpSize = cof_stat.st_size;
-		//cerr << "the size of " << dist_file_list[i] << " is: " << tmpSize << endl;
-		//char * tmpco = (char*)malloc((tmpSize+1) * sizeof(char));
 		while(1)
 		{
 			lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
@@ -609,11 +435,6 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 		fclose(cofp);
 
 		remove(dist_file_list[i].c_str());
-
-		//fread(tmpco, sizeof(char), tmpSize, cofp);
-		//fwrite(tmpco, sizeof(char), tmpSize, com_cofp);
-		//fclose(cofp);
-		//free(tmpco);
 	}
 
 	free(bufRead);
