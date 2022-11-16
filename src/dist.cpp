@@ -18,6 +18,7 @@ setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
 void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int numThreads){
 
+	double tt1 = get_sec();
 	string indexFile = refSketchOut + ".index";
 	string dictFile = refSketchOut + ".dict";
 	size_t hashSize;
@@ -50,6 +51,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 
 
 	double t0 = get_sec();
+	cerr << "===================time of read index and offset sketch file is: " << t0 - tt1 << endl;
 	size_t numRef = sketches.size();
 
 	vector<FILE*> fpArr;
@@ -67,10 +69,11 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	}
 	
 	cerr << "before generate the interaection " << endl;
-	double tt1 = get_sec();
 	
+	cerr << "=====total: " << numRef << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(size_t i = 0; i < numRef; i++){
+		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
 		memset(intersectionArr[tid], 0, numRef * sizeof(int));
 		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
@@ -218,6 +221,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 }
 
 void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+	double tt1 = get_sec();
 	string refIndexFile = refSketchOut + ".index";
 	string refDictFile = refSketchOut + ".dict";
 	size_t refHashSize;
@@ -249,6 +253,7 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	fread(refIndexArr, sizeof(int), refTotalHashNumber, fp1);
 
 	double t0 = get_sec();
+	cerr << "===================time of read the index and offset sketch file is: " << t0 - tt1 << endl;
 	size_t numRef = ref_sketches.size();
 	size_t numQuery = query_sketches.size();
 
@@ -265,11 +270,13 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		intersectionArr.push_back(arr);
 	}
 	cerr << "before generate the intersection " << endl;
-	double tt1 = get_sec();
 
-	
+	string nearestFile = outputFile + ".nearest";
+	FILE* fp2 = fopen(nearestFile.c_str(), "w");
+	cerr << "=====total: " << numQuery << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(int i = 0; i < numQuery; i++){
+		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
 		memset(intersectionArr[tid], 0, numRef *sizeof(int));
 		for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
@@ -283,10 +290,16 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 			}
 		}
 		
+		double nearDist = 1.0;
+		int nearCommon = 0;
+		int nearRSize = 0;
+		int nearRid = 0;
+		double nearJaccard = 0.0;
+
+		int size1 = query_sketches[i].hashSet.size();
 		for(size_t j = 0; j < numRef; j++){
 			int common = intersectionArr[tid][j];
 			int size0 = ref_sketches[j].hashSet.size();
-			int size1 = query_sketches[i].hashSet.size();
 			int denom = size0 + size1 - common;
 			double jaccard = (double)common / denom;
 			double mashD;
@@ -298,8 +311,20 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			if(mashD < maxDist)
 				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+			if(mashD < nearDist){
+				nearDist = mashD;
+				nearCommon = common;
+				nearRSize = size0;
+				nearRid = j;
+				nearJaccard = jaccard;
+			}
 		}
-	}
+		#pragma omp critical
+		{
+			fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[nearRid].fileName.c_str(), query_sketches[i].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
+		}
+	}//end this query genome
+	fclose(fp2);
 
 	cerr << "finished multithread computing" << endl;
 
