@@ -8,6 +8,11 @@
 #include <algorithm>
 #include <unordered_map>
 #include "robin_hood.h"
+#include <sys/stat.h>
+
+#include <unordered_set>
+#include "Formater.h"
+#include "RabbitFX.h"
 
 KSEQ_INIT(gzFile, gzread);
 
@@ -24,6 +29,9 @@ bool cmp(uint32_t a, uint32_t b){
 bool cmpSketch(sketch_t s1, sketch_t s2){
 	return s1.id < s2.id;
 }
+bool cmpFile(fileInfo_t f1, fileInfo_t f2){
+	return f1.fileSize > f2.fileSize;
+}
 
 bool isSketchFile(string inputFile){
 	int startPos = inputFile.find_last_of('.');
@@ -34,6 +42,91 @@ bool isSketchFile(string inputFile){
 }
 
 inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, string dictFile, string indexFile);
+
+void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, vector<uint32_t>& hashArr){
+
+	int half_k = parameter.half_k;
+	int drlevel = parameter.drlevel;
+	int rev_add_move = parameter.rev_add_move;
+	int half_outctx_len = parameter.half_outctx_len;
+	int * shuffled_dim = parameter.shuffled_dim;
+	int dim_start = parameter.dim_start;
+	int dim_end = parameter.dim_end;
+	int kmer_size = parameter.kmer_size;
+	uint32_t hashSize = parameter.hashSize;
+	int hashLimit = parameter.hashLimit;
+	uint64_t tupmask = parameter.tupmask;
+	uint64_t undomask0 = parameter.undomask0;
+	uint64_t undomask1 = parameter.undomask1;
+	uint64_t domask = parameter.domask;
+	
+	uint32_t* co = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
+	memset(co, 0, hashSize * sizeof(uint32_t));
+	while(1){
+		auto data = m_reader.get_formated_reads();
+		if(data.size() == 0) break;
+		for(Reference &r: data){
+			int length = r.length;
+			string name = r.name;
+
+			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
+			int keyCount = 0;
+			uint64_t base = 1;
+
+			for(int i = 0; i < length; i++){
+				char ch = r.seq[i];
+				int basenum = BaseMap[(int)ch];
+				if(basenum != -1)
+				{
+					tuple = ((tuple << 2) | basenum) & tupmask;
+					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
+					base++;
+				}
+				if(i >= kmer_size-1)
+				{
+					uni_tuple = tuple < rvs_tuple ? tuple : rvs_tuple;
+					int dim_id = (uni_tuple & domask) >> (half_outctx_len * 2);
+					if(shuffled_map.count(dim_id) == 0){
+						continue;
+					}
+					pfilter = shuffled_map[dim_id];
+
+					pfilter -= dim_start;
+					dr_tuple = (((uni_tuple & undomask0) | ((uni_tuple & undomask1) << (kmer_size * 2 - half_outctx_len * 4))) >> (drlevel * 4)) | pfilter; 
+
+					uint32_t j, n;
+					for(j = 0; j < hashSize; j++)
+					{
+						n = HASH(dr_tuple, j, hashSize);
+						if(co[n] == 0)
+						{
+							co[n] = dr_tuple;
+							keyCount++;
+							if(keyCount > hashLimit){
+								err(errno, "the context space is too crowd, try rerun the program using -k %d\n", half_k + 1);
+							}
+							break;
+						}
+						else if(co[n] == dr_tuple){
+							break;
+						}
+					}//end for, hash computing 
+				}
+			} //end for, of a sequence
+		}//end of all sequence
+
+	}//end while(1)
+
+	for(int k = 0; k < hashSize; k++){
+		if(co[k] != 0){
+			hashArr.push_back(co[k]);
+		}
+	}
+
+	std::sort(hashArr.begin(), hashArr.end(), cmp);
+	free(co);
+}
+
 
 bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
 	int half_k = parameter.half_k;
@@ -75,13 +168,80 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 	if(!fs){
 		err(errno, "cannot open the inputFile: %s\n", inputFile.c_str());
 	}
-	vector<string> fileList;
+	vector<fileInfo_t> fileList;
+	//vector<uint64_t> fileSizeArr;
+	uint64_t totalSize = 0;
 	string fileName;
 	while(getline(fs, fileName)){
-		fileList.push_back(fileName);
+		struct stat cur_stat;
+		stat(fileName.c_str(), &cur_stat);
+		uint64_t curSize = cur_stat.st_size;
+		totalSize += curSize;
+		fileInfo_t tmpF;
+		tmpF.fileName = fileName;
+		tmpF.fileSize = curSize;
+		fileList.push_back(tmpF);
 	}
-	//cerr << "the size of fileList is: " << fileList.size() << endl;
-	//cerr << "the numThreads is: " << numThreads << endl;
+	std::sort(fileList.begin(), fileList.end(), cmpFile);
+	uint64_t limitSize = totalSize / numThreads;
+	vector<string> bigFileArr;
+	vector<string> smallFileArr;
+	for(int i = 0; i < fileList.size(); i++){
+		if(fileList[i].fileSize > limitSize)
+			bigFileArr.push_back(fileList[i].fileName);
+		else
+			smallFileArr.push_back(fileList[i].fileName);
+	}
+	int numBigFile = bigFileArr.size();
+	cerr << "the total fileNumber is: " << fileList.size() << endl;
+	cerr << "the big fileNumber is: " << numBigFile << endl;
+	cerr << "the small fileNumber is: " << smallFileArr.size() << endl;
+ 
+ 	if(numBigFile != 0){
+		int numConsumer = 7;
+		int numGroup = numThreads / (numConsumer + 1);
+		if(numBigFile < numGroup){
+			numGroup = numBigFile;
+			numConsumer = numThreads / numGroup - 1;
+		}
+		cerr << "the numThreads is: " << numThreads << endl;
+		cerr << "the numGroup is: " << numGroup << endl;
+		cerr << "the numConsumer is: " << numConsumer << endl;
+		#pragma omp parallel for num_threads(numGroup)
+		for(int i = 0; i < bigFileArr.size(); i++){
+			vector<uint32_t> hashArr[numConsumer];
+			FXReader<FA> m_reader(bigFileArr[i]);
+			std::thread ** threads =new std::thread*[numConsumer];
+			//std::thread ** threads =new std::thread*[numThreads];
+			for(int t = 0; t < numConsumer; t++){
+				threads[t] = new std::thread(std::bind(consumer_fasta_task, std::ref(m_reader), std::ref(parameter), std::ref(shuffled_map), std::ref(hashArr[t]))); 
+			}
+			m_reader.join_producer();
+			for(int t = 0; t < numConsumer; t++){
+				threads[t]->join();
+			}
+			sketch_t tmpSketch;
+			unordered_set<uint32_t> finalMap;
+			vector<uint32_t> finalHashArr;
+			for(int i = 0; i < numConsumer; i++){
+				for(auto x : hashArr[i]){
+					finalMap.insert(x);	
+				}
+			}
+			for(auto x : finalMap){
+				finalHashArr.push_back(x);
+			}
+			std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
+			tmpSketch.fileName = bigFileArr[i];
+			tmpSketch.id = i;
+			tmpSketch.hashSet = finalHashArr;
+			#pragma omp critical
+			{
+			sketches.push_back(tmpSketch);
+			}
+		}
+		cerr << "finished the clustering of the big genomes" << endl;
+	}
 
 	uint32_t ** coArr = (uint32_t **)malloc(numThreads * sizeof(uint32_t*));
 	for(int i = 0; i < numThreads; i++)
@@ -89,26 +249,24 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 		coArr[i] = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
 	}
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int t = 0; t <fileList.size(); t++)
+	for(int t = 0; t <smallFileArr.size(); t++)
 	{
 		int tid = omp_get_thread_num();
 		sketch_t tmpSketch;
 		gzFile fp1;
 		kseq_t * ks1;
-		fp1 = gzopen(fileList[t].c_str(), "r");
+		fp1 = gzopen(smallFileArr[t].c_str(), "r");
 		if(fp1 == NULL){
-			//fprintf(stderr, "cannot open the genome file: %s\n", fileList[t].c_str());
-			//return 1;
-			err(errno, "cannot open the genome file: %s\n", fileList[t].c_str());
+			err(errno, "cannot open the genome file: %s\n", smallFileArr[t].c_str());
 		}
 		ks1 = kseq_init(fp1);
 		uint64_t totalLength = 0;
 		//uint64_t* co = (uint64_t*)malloc(hashSize * sizeof(uint64_t));
 		uint32_t* co = coArr[tid];
 		memset(co, 0LLU, hashSize * sizeof(uint32_t));
-		size_t foundIndex = fileList[t].find_last_of('/');
-		//tmpSketch.fileName = fileList[t].substr(foundIndex+1);
-		tmpSketch.fileName = fileList[t];
+		//size_t foundIndex = smallList[t].find_last_of('/');
+		//tmpSketch.fileName = smallList[t].substr(foundIndex+1);
+		tmpSketch.fileName = smallFileArr[t];
 
 		//int time = 0;
 		while(1)
@@ -210,7 +368,7 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 				hashArr.push_back(co[k]);
 			}
 		}
-		tmpSketch.id = t;
+		tmpSketch.id = t + numBigFile;
 		std::sort(hashArr.begin(), hashArr.end(), cmp);
 		tmpSketch.hashSet = hashArr;
 

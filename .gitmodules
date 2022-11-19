@@ -1,0 +1,3 @@
+[submodule "RabbitFX"]
+	path = RabbitFX
+	url = https://github.com/RabbitBio/RabbitFX.git

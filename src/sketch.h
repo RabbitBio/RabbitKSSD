@@ -7,6 +7,13 @@
 #include "common.h"
 
 using namespace std;
+
+typedef struct fileInfo
+{
+	string fileName;
+	uint64_t fileSize;
+} fileInfo_t;
+
 typedef struct sketch
 {
 	string fileName;

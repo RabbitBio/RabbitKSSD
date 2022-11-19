@@ -20,7 +20,7 @@ endif()
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CXX_FLAGS "-g -O3 -march=native -lz ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-g -O3 -march=native ${CMAKE_CXX_FLAGS}")
 
 
 if(USE_DEBUG)
@@ -31,8 +31,12 @@ if(USE_Timer)
 	set(CMAKE_CXX_FLAGS "-D Timer ${CMAKE_CXX_FLAGS}")
 endif()
 
+include_directories(src RabbitFX/build/include)
+link_directories(RabbitFX/build/lib)
+
 aux_source_directory(src DIR_SRCS)
 add_executable(kssd ${DIR_SRCS})
+target_link_libraries(kssd rabbitfx z)
 
 install(TARGETS kssd DESTINATION ./)
 
