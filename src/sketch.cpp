@@ -82,7 +82,10 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, ro
 					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
 					base++;
 				}
-				if(i >= kmer_size-1)
+				else{
+					base = 1;
+				}
+				if(base > kmer_size)
 				{
 					uni_tuple = tuple < rvs_tuple ? tuple : rvs_tuple;
 					int dim_id = (uni_tuple & domask) >> (half_outctx_len * 2);
@@ -296,7 +299,11 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
 					base++;
 				}
-				if(i >= kmer_size-1)
+				else{
+					base = 1;
+
+				}
+				if(base > kmer_size)
 				{
 					uni_tuple = tuple < rvs_tuple ? tuple : rvs_tuple;
 					int dim_id = (uni_tuple & domask) >> (half_outctx_len * 2);
