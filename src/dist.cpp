@@ -101,7 +101,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 			else
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 		}
 	}
 
@@ -178,7 +178,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			//fprintf(fp0, "jaccard between[%d] and [%d] is: %lf\n", i, j, jaccard);
 			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 		}
 	}
 	//close the subResultFile
@@ -310,7 +310,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 			else
 				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
 			if(mashD < nearDist){
 				nearDist = mashD;
 				nearCommon = common;
@@ -321,7 +322,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		}
 		#pragma omp critical
 		{
-			fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[nearRid].fileName.c_str(), query_sketches[i].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
+			//fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[nearRid].fileName.c_str(), query_sketches[i].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
+			fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
 		}
 	}//end this query genome
 	fclose(fp2);
@@ -401,7 +403,8 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 				//fprintf(fp0, "jaccard between[%d] and [%d] is: %lf\n", i, j, jaccard);
 				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[i].fileName.c_str(), query_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[i].fileName.c_str(), query_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[j].fileName.c_str(), ref_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 			}
 		}
 	}
@@ -426,7 +429,8 @@ void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 				//fprintf(fp0, "jaccard between[%d] and [%d] is: %lf\n", i, j, jaccard);
 				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
 			}
 		}
 	}

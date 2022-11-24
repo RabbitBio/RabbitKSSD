@@ -33,6 +33,22 @@ bool cmpFile(fileInfo_t f1, fileInfo_t f2){
 	return f1.fileSize > f2.fileSize;
 }
 
+bool isFasta(string inputFile){
+	ifstream ifs(inputFile);
+	string line;
+	getline(ifs, line);
+	if(line[0] == '>') return true;
+	else return false;
+}
+
+bool isFastq(string inputFile){
+	ifstream ifs(inputFile);
+	string line;
+	getline(ifs, line);
+	if(line[0] == '@') return true;
+	else return false;
+}
+
 bool isSketchFile(string inputFile){
 	int startPos = inputFile.find_last_of('.');
 	if(startPos == string::npos) return false;
@@ -67,6 +83,97 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, ro
 		if(data.size() == 0) break;
 		for(Reference &r: data){
 			int length = r.length;
+			string name = r.name;
+
+			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
+			int keyCount = 0;
+			uint64_t base = 1;
+
+			for(int i = 0; i < length; i++){
+				char ch = r.seq[i];
+				int basenum = BaseMap[(int)ch];
+				if(basenum != -1)
+				{
+					tuple = ((tuple << 2) | basenum) & tupmask;
+					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
+					base++;
+				}
+				else{
+					base = 1;
+				}
+				if(base > kmer_size)
+				{
+					uni_tuple = tuple < rvs_tuple ? tuple : rvs_tuple;
+					int dim_id = (uni_tuple & domask) >> (half_outctx_len * 2);
+					if(shuffled_map.count(dim_id) == 0){
+						continue;
+					}
+					pfilter = shuffled_map[dim_id];
+
+					pfilter -= dim_start;
+					dr_tuple = (((uni_tuple & undomask0) | ((uni_tuple & undomask1) << (kmer_size * 2 - half_outctx_len * 4))) >> (drlevel * 4)) | pfilter; 
+
+					uint32_t j, n;
+					for(j = 0; j < hashSize; j++)
+					{
+						n = HASH(dr_tuple, j, hashSize);
+						if(co[n] == 0)
+						{
+							co[n] = dr_tuple;
+							keyCount++;
+							if(keyCount > hashLimit){
+								err(errno, "the context space is too crowd, try rerun the program using -k %d\n", half_k + 1);
+							}
+							break;
+						}
+						else if(co[n] == dr_tuple){
+							break;
+						}
+					}//end for, hash computing 
+				}
+			} //end for, of a sequence
+		}//end of all sequence
+
+	}//end while(1)
+
+	for(int k = 0; k < hashSize; k++){
+		if(co[k] != 0){
+			hashArr.push_back(co[k]);
+		}
+	}
+
+	std::sort(hashArr.begin(), hashArr.end(), cmp);
+	free(co);
+}
+
+void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, vector<uint32_t>& hashArr){
+
+	int half_k = parameter.half_k;
+	int drlevel = parameter.drlevel;
+	int rev_add_move = parameter.rev_add_move;
+	int half_outctx_len = parameter.half_outctx_len;
+	int * shuffled_dim = parameter.shuffled_dim;
+	int dim_start = parameter.dim_start;
+	int dim_end = parameter.dim_end;
+	int kmer_size = parameter.kmer_size;
+	uint32_t hashSize = parameter.hashSize;
+	int hashLimit = parameter.hashLimit;
+	uint64_t tupmask = parameter.tupmask;
+	uint64_t undomask0 = parameter.undomask0;
+	uint64_t undomask1 = parameter.undomask1;
+	uint64_t domask = parameter.domask;
+	
+	//cerr << "enter the consumer_fastq_task " << endl;
+	uint32_t* co = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
+	memset(co, 0, hashSize * sizeof(uint32_t));
+	while(1){
+		//cerr << "enter the consumer_fastq_task " << endl;
+		auto data = m_reader.get_formated_reads();
+		if(data.size() == 0) break;
+		for(Reference &r: data){
+			int length = r.seq.length();
+			//cerr << "the length is: " << length << endl;
+			//exit(0);
 			string name = r.name;
 
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
@@ -188,32 +295,45 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 	std::sort(fileList.begin(), fileList.end(), cmpFile);
 	uint64_t limitSize = totalSize / numThreads;
 	vector<string> bigFileArr;
+	vector<string> bigFastaArr;
+	vector<string> bigFastqArr;
 	vector<string> smallFileArr;
 	for(int i = 0; i < fileList.size(); i++){
-		if(fileList[i].fileSize > limitSize)
+		if(fileList[i].fileSize > limitSize){
 			bigFileArr.push_back(fileList[i].fileName);
+			if(isFasta(fileList[i].fileName))
+				bigFastaArr.push_back(fileList[i].fileName);
+			else if(isFastq(fileList[i].fileName))
+				bigFastqArr.push_back(fileList[i].fileName);
+			else
+				err(errno, "the file format of %s is not support, only support fasta and fastq format input\n", fileList[i].fileName.c_str());
+		}
 		else
 			smallFileArr.push_back(fileList[i].fileName);
 	}
 	int numBigFile = bigFileArr.size();
+	int numBigFasta = bigFastaArr.size();
+	int numBigFastq = bigFastqArr.size();
 	cerr << "the total fileNumber is: " << fileList.size() << endl;
 	cerr << "the big fileNumber is: " << numBigFile << endl;
+	cerr << "the big fasta file is: " << numBigFasta << endl;
+	cerr << "the big fastq file is: " << numBigFastq << endl;
 	cerr << "the small fileNumber is: " << smallFileArr.size() << endl;
  
- 	if(numBigFile != 0){
+ 	if(numBigFasta != 0){
 		int numConsumer = 7;
 		int numGroup = numThreads / (numConsumer + 1);
-		if(numBigFile < numGroup){
-			numGroup = numBigFile;
+		if(numBigFasta < numGroup){
+			numGroup = numBigFasta;
 			numConsumer = numThreads / numGroup - 1;
 		}
 		cerr << "the numThreads is: " << numThreads << endl;
-		cerr << "the numGroup is: " << numGroup << endl;
-		cerr << "the numConsumer is: " << numConsumer << endl;
+		cerr << "the numGroup for sketching fasta is: " << numGroup << endl;
+		cerr << "the numConsumer for fasta is: " << numConsumer << endl;
 		#pragma omp parallel for num_threads(numGroup)
-		for(int i = 0; i < bigFileArr.size(); i++){
+		for(int i = 0; i < bigFastaArr.size(); i++){
 			vector<uint32_t> hashArr[numConsumer];
-			FXReader<FA> m_reader(bigFileArr[i]);
+			FXReader<FA> m_reader(bigFastaArr[i]);
 			std::thread ** threads =new std::thread*[numConsumer];
 			//std::thread ** threads =new std::thread*[numThreads];
 			for(int t = 0; t < numConsumer; t++){
@@ -235,7 +355,7 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 				finalHashArr.push_back(x);
 			}
 			std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
-			tmpSketch.fileName = bigFileArr[i];
+			tmpSketch.fileName = bigFastaArr[i];
 			tmpSketch.id = i;
 			tmpSketch.hashSet = finalHashArr;
 			#pragma omp critical
@@ -243,7 +363,52 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 			sketches.push_back(tmpSketch);
 			}
 		}
-		cerr << "finished the clustering of the big genomes" << endl;
+		cerr << "finished the sketching of the big fasta genomes" << endl;
+	}
+ 	if(numBigFastq != 0){
+		int numConsumer = 7;
+		int numGroup = numThreads / (numConsumer + 1);
+		if(numBigFastq < numGroup){
+			numGroup = numBigFastq;
+			numConsumer = numThreads / numGroup - 1;
+		}
+		cerr << "the numThreads is: " << numThreads << endl;
+		cerr << "the numGroup for sketching fastq is: " << numGroup << endl;
+		cerr << "the numConsumer for fastq is: " << numConsumer << endl;
+		#pragma omp parallel for num_threads(numGroup)
+		for(int i = 0; i < bigFastqArr.size(); i++){
+			vector<uint32_t> hashArr[numConsumer];
+			FXReader<FQ_SE> m_reader(bigFastqArr[i]);
+			std::thread ** threads =new std::thread*[numConsumer];
+			//std::thread ** threads =new std::thread*[numThreads];
+			for(int t = 0; t < numConsumer; t++){
+				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), std::ref(shuffled_map), std::ref(hashArr[t]))); 
+			}
+			m_reader.join_producer();
+			for(int t = 0; t < numConsumer; t++){
+				threads[t]->join();
+			}
+			sketch_t tmpSketch;
+			unordered_set<uint32_t> finalMap;
+			vector<uint32_t> finalHashArr;
+			for(int i = 0; i < numConsumer; i++){
+				for(auto x : hashArr[i]){
+					finalMap.insert(x);	
+				}
+			}
+			for(auto x : finalMap){
+				finalHashArr.push_back(x);
+			}
+			std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
+			tmpSketch.fileName = bigFastqArr[i];
+			tmpSketch.id = i;
+			tmpSketch.hashSet = finalHashArr;
+			#pragma omp critical
+			{
+			sketches.push_back(tmpSketch);
+			}
+		}
+		cerr << "finished the sketching of the big fastq genomes" << endl;
 	}
 
 	uint32_t ** coArr = (uint32_t **)malloc(numThreads * sizeof(uint32_t*));
