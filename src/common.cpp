@@ -21,6 +21,7 @@ kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shu
 	}
 	kssd_parameter_t parameter;
 	parameter.half_k = half_k;
+	parameter.half_subk = half_subk;
 	parameter.drlevel = drlevel;
 	int half_outctx_len = half_k - half_subk;
 	parameter.half_outctx_len = half_outctx_len;

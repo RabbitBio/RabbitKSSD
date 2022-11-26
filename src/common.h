@@ -7,6 +7,7 @@
 typedef struct kssd_parameter
 {
 	int half_k;
+	int half_subk;
 	int drlevel;
 	int rev_add_move;
 	int half_outctx_len;

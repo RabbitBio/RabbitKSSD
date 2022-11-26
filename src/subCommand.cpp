@@ -17,7 +17,8 @@ void command_sketch(string refList, string outputFile, kssd_parameter_t kssd_par
 
 void command_info(string sketchFile, string outputFile){
 	vector<sketch_t> sketches;
-	readSketches(sketches, sketchFile);
+	sketchInfo_t info;
+	readSketches(sketches, info, sketchFile);
 	cerr << "the number of genome is: " << sketches.size() << endl;
 	//printInfos(sketches, outputFile);
 	printSketches(sketches, outputFile);
@@ -28,9 +29,10 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 	double t3;
 	string refSketchOut;
 	vector<sketch_t> sketches;
+	sketchInfo_t info;
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
-		readSketches(sketches, refList);
+		readSketches(sketches, info, refList);
 		t3 = get_sec();
 		cerr << "===================time of read sketches from file is " << t3 - t2 << endl;
 	}
@@ -54,9 +56,10 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	double t3, t4;
 	string refSketchOut, querySketchOut;
 	vector<sketch_t> ref_sketches;
+	sketchInfo_t info;
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
-		readSketches(ref_sketches, refList);
+		readSketches(ref_sketches, info, refList);
 		t3 = get_sec();
 		cerr << "===================time of read reference sketches from " << refList << " is: " << t3 - t2 << endl;
 	}
@@ -71,7 +74,7 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	vector<sketch_t> query_sketches;
 	if(isSketchFile(queryList)){
 		querySketchOut = queryList;
-		readSketches(query_sketches, queryList);
+		readSketches(query_sketches, info, queryList);
 		t4 = get_sec();
 		cerr << "===================time of read query sketches from " << queryList << " is: " << t4 - t3 << endl;
 	}
@@ -90,13 +93,14 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	//cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
 }
 
-void command_merge(string sketchFile, string outputFile, int threadNumber){
+void command_merge(string sketchFile, string outputFile, int threads){
 	
 	vector<sketch_t> sketches;
 	if(!isSketchFile(sketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", sketchFile.c_str());
 	}
-	readSketches(sketches, sketchFile);
+	sketchInfo_t info;
+	readSketches(sketches, info, sketchFile);
 	//exit(0);
 	string totalName("");
 	robin_hood::unordered_set<uint32_t> mergedSet;
@@ -124,7 +128,11 @@ void command_merge(string sketchFile, string outputFile, int threadNumber){
 	s.fileName = totalName;
 	s.hashSet = mergedArr;
 	mergedSketches.push_back(s);
-	saveSketches(mergedSketches, outputFile);
+	saveSketches(mergedSketches, info, outputFile);
+
+	string dictFile = outputFile + ".dict";
+	string indexFile = outputFile + ".index";
+	transSketches(mergedSketches, info, dictFile, indexFile, threads);
 }
 
 void command_sub(string refSketchFile, string querySketchFile, string outputFile, int threads){
@@ -132,12 +140,13 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	if(!isSketchFile(refSketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
 	}
-	readSketches(refSketches, refSketchFile);
+	sketchInfo_t info;
+	readSketches(refSketches, info, refSketchFile);
 	vector<sketch_t> querySketches;
 	if(!isSketchFile(querySketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
 	}
-	readSketches(querySketches, querySketchFile);
+	readSketches(querySketches, info, querySketchFile);
 	cerr << "the refSketches size is: " << refSketches.size() << endl;
 	cerr << "the querySketches size is: " << querySketches.size() << endl;
 
@@ -151,6 +160,7 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	cerr << "the size of refHashSet is: " << refHashSet.size() << endl;
 
 	vector<sketch_t> subSketches;
+	#pragma omp parallel for num_threads(threads)
 	for(int i = 0; i < querySketches.size(); i++){
 		sketch_t s;
 		s.fileName = querySketches[i].fileName;
@@ -163,11 +173,20 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 		}
 		std::sort(newHashArr.begin(), newHashArr.end());
 		s.hashSet = newHashArr;
+		#pragma omp critical
+		{
 		subSketches.push_back(s);
+		}
 	}
+	std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
+
 	//printSketches(subSketches, "hello.out");
 	
-	saveSketches(subSketches, outputFile);
+	saveSketches(subSketches, info, outputFile);
+
+	string dictFile = outputFile + ".dict";
+	string indexFile = outputFile + ".index";
+	transSketches(subSketches, info, dictFile, indexFile, threads);
 }
 	
 

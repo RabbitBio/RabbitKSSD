@@ -57,7 +57,6 @@ bool isSketchFile(string inputFile){
 	else return false;
 }
 
-inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, string dictFile, string indexFile);
 
 void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, vector<uint32_t>& hashArr){
 
@@ -240,6 +239,7 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 
 bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
 	int half_k = parameter.half_k;
+	int half_subk = parameter.half_subk;
 	int drlevel = parameter.drlevel;
 	int rev_add_move = parameter.rev_add_move;
 	int half_outctx_len = parameter.half_outctx_len;
@@ -562,14 +562,19 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 	if(!isSketchFile(outputFile)){
 		outputFile = outputFile + ".sketch";
 	}
-	saveSketches(sketches, outputFile);
+	sketchInfo_t info;
+	info.half_k = half_k;
+	info.half_subk = half_subk;
+	info.drlevel = drlevel;
+	info.genomeNumber = sketches.size();
+	saveSketches(sketches, info, outputFile);
 	cerr << "save the sketches into: " << outputFile << endl;
 
 	if(isReference){
 		double tstart = get_sec();
 		string dictFile = outputFile + ".dict";
 		string indexFile = outputFile + ".index";
-		transSketches(sketches, half_k, drlevel, dictFile, indexFile);
+		transSketches(sketches, info, dictFile, indexFile, numThreads);
 		double tend = get_sec();
 		cerr << "===============the time of transSketches is: " << tend - tstart << endl;
 	}
@@ -578,7 +583,10 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 
 }
 
-inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, string dictFile, string indexFile){
+void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads){
+	double t0 = get_sec();
+	int half_k = info.half_k;
+	int drlevel = info.drlevel;
 	size_t hashSize = 1 << (4 * (half_k - drlevel));
 	vector<vector<int>> hashMapId;
 	hashMapId.resize(hashSize);
@@ -587,13 +595,17 @@ inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, st
 	cerr << "the hashSize is: " << hashSize << endl;
 	cerr << "start the hashMapId " << endl;
 	for(int i = 0; i < sketches.size(); i++){
+		#pragma omp parellel for num_threads(numThreads)
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
 			int hash = sketches[i].hashSet[j];
 			//cerr << "the hash: " << hash << endl;
 			hashMapId[hash].emplace_back(i);
 		}
 	}
-	cerr << "finish the hashMapId " << endl;
+	//cerr << "finish the hashMapId " << endl;
+	
+	double t1 = get_sec();
+	cerr << "the time of transpose sketch is: " << t1 - t0 << endl;
 
 	FILE * fp0 = fopen(dictFile.c_str(), "w+");
 	uint64_t totalIndex = 0;
@@ -609,15 +621,17 @@ inline void transSketches(vector<sketch_t> sketches, int half_k, int drlevel, st
 	fwrite(&hashSize, sizeof(size_t), 1, fp1);
 	fwrite(&totalIndex, sizeof(uint64_t), 1, fp1);
 	fwrite(offsetArr, sizeof(int), hashSize, fp1);
+	double t2 = get_sec();
+	cerr << "the time of write output file is: " << t2 - t1 << endl;
 	fclose(fp1);
-	cerr << "finshed the dictionary generation of the hash values" << endl;
+	//cerr << "finshed the dictionary generation of the hash values" << endl;
 	cerr << "the hashSize is: " << hashSize << endl;
 	cerr << "the totalIndex is: " << totalIndex << endl;
 
 }
 
 
-void saveSketches(vector<sketch_t> sketches, string outputFile){
+void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFile){
 
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	int sketchNumber = sketches.size();
@@ -634,7 +648,9 @@ void saveSketches(vector<sketch_t> sketches, string outputFile){
 	//cerr << "the sketches size is: " << sketchNumber << endl;
 	//cerr << "the total hash number is: " << totalNumber << endl;
 	//cerr << "the total name length is: " << totalLength << endl;
-	fwrite(&sketchNumber, sizeof(int), 1, fp);
+	//fwrite(&parameter, sizeof(kssd_parameter_t), 1, fp);
+	fwrite(&info, sizeof(sketchInfo_t), 1, fp);
+	//fwrite(&sketchNumber, sizeof(int), 1, fp);
 	fwrite(genomeNameSize, sizeof(int), sketchNumber, fp);
 	fwrite(hashSetSize, sizeof(int), sketchNumber, fp);
 	for(int i = 0; i < sketchNumber; i++){
@@ -649,10 +665,11 @@ void saveSketches(vector<sketch_t> sketches, string outputFile){
 
 }
 
-void readSketches(vector<sketch_t>& sketches, string inputFile){
+void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile){
 	FILE * fp = fopen(inputFile.c_str(), "rb+");
-	int sketchNumber;
-	fread(&sketchNumber, sizeof(int), 1, fp);
+	fread(&info, sizeof(sketchInfo_t), 1, fp);
+	int sketchNumber = info.genomeNumber;
+	//fread(&sketchNumber, sizeof(int), 1, fp);
 	//cerr << "sketchNumber is: " << sketchNumber << endl;
 	int * genomeNameSize = new int[sketchNumber];
 	int * hashSetSize = new int[sketchNumber];
