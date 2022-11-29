@@ -18,7 +18,9 @@ setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
 void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int numThreads){
 
-	double tt1 = get_sec();
+	#ifdef Timer
+	double t0 = get_sec();
+	#endif
 	string indexFile = refSketchOut + ".index";
 	string dictFile = refSketchOut + ".dict";
 	size_t hashSize;
@@ -40,41 +42,56 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 		cerr << "error of the total hash number" << endl;
 		exit(1);
 	}
-	cerr << "the hashSize is: " << hashSize << endl;
-	cerr << "totalIndex is: " << totalIndex << endl;
-	cerr << "totalHashNumber is: " << totalHashNumber << endl;
-	cerr << "offset[n-1] is: " << offset[hashSize-1] << endl;;
+	//cerr << "the hashSize is: " << hashSize << endl;
+	//cerr << "totalIndex is: " << totalIndex << endl;
+	//cerr << "totalHashNumber is: " << totalHashNumber << endl;
+	//cerr << "offset[n-1] is: " << offset[hashSize-1] << endl;;
 
 	int * indexArr = (int*)malloc(totalHashNumber * sizeof(int));
 	FILE * fp1 = fopen(dictFile.c_str(), "rb");
 	fread(indexArr, sizeof(int), totalHashNumber, fp1);
 
 
-	double t0 = get_sec();
-	cerr << "===================time of read index and offset sketch file is: " << t0 - tt1 << endl;
+	#ifdef Timer
+	double t1 = get_sec();
+	cerr << "===================time of read index and offset sketch file is: " << t1 - t0 << endl;
+	#endif
 	size_t numRef = sketches.size();
 
 	vector<FILE*> fpArr;
+	vector<FILE*> fpIndexArr;
 	vector<string> dist_file_list;
+	vector<string> dist_index_list;
 	vector<int* > intersectionArr;
+	
+	string folderPath = outputFile + ".dir";
+	string command0 = "mkdir -p " + folderPath;
+	system(command0.c_str());
+
 	for(int i = 0; i < numThreads; i++)
 	{
-		string tmpName = outputFile + to_string(i);
+		string tmpName = folderPath + '/' + outputFile + '.' + to_string(i);
 		dist_file_list.push_back(tmpName);
-
-		FILE * fp0 = fopen(tmpName.c_str(), "w");
+		FILE * fp0 = fopen(tmpName.c_str(), "w+");
 		fpArr.push_back(fp0);
+
+		string tmpIndexName = outputFile + ".index." + to_string(i);
+		dist_index_list.push_back(tmpIndexName);
+		FILE * fp1 = fopen(tmpIndexName.c_str(), "w+");
+		fpIndexArr.push_back(fp1);
+
 		int * arr = (int*)malloc(numRef * sizeof(int));
 		intersectionArr.push_back(arr);
 	}
 	
-	cerr << "before generate the interaection " << endl;
+	//cerr << "before generate the intersection " << endl;
 	
 	cerr << "=====total: " << numRef << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(size_t i = 0; i < numRef; i++){
 		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
+		fprintf(fpIndexArr[tid], "%s\t%s\n", sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef * sizeof(int));
 		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
 			int hash = sketches[i].hashSet[j];
@@ -106,42 +123,86 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	}
 
 
-	cerr << "finished multithread computing" << endl;
+	//cerr << "finished multithread computing" << endl;
 
 	for(int i = 0; i < numThreads; i++)
 	{
 		fclose(fpArr[i]);
+		fclose(fpIndexArr[i]);
 	}
-	cerr << "finished fpArr fclose" << endl;
-	//free(intersection_arr);
+	//cerr << "finished fpArr fclose" << endl;
 
-	double t1 = get_sec();
-	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
-
-	FILE * cofp;
-	FILE * com_cofp = fopen(outputFile.c_str(), "w");
-	fprintf(com_cofp, " genome0\tgenome1\tcommon|size0|size1\tjaccard\tmashD\n");
-	int bufSize = 1 << 24;
-	int lengthRead = 0;
-	char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
-	for(int i = 0; i < numThreads; i++)
-	{
-		cofp = fopen(dist_file_list[i].c_str(), "rb+");
-		while(1)
-		{
-			lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
-			//cerr << "the lengthRead is: " << lengthRead << endl;
-			fwrite(bufRead, sizeof(char), lengthRead, com_cofp);
-			if(lengthRead < bufSize) break;
-		}
-		fclose(cofp);
-		remove(dist_file_list[i].c_str());
-	}
-
-	free(bufRead);
-	fclose(com_cofp);
+	#ifdef Timer
 	double t2 = get_sec();
-	cerr << "===================time of merge the subFiles into final files is: " << t2 - t1 << endl;
+	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t2 - t1 << endl;
+	#endif
+
+	uint64_t totalSize = 0;
+	uint64_t maxSize = 1LLU << 32; //max total distance file size 2GB
+	bool isMerge = false;
+	for(int i = 0; i < numThreads; i++){
+		struct stat cur_stat;
+		stat(dist_file_list[i].c_str(), &cur_stat);
+		uint64_t curSize = cur_stat.st_size;
+		totalSize += curSize;
+	}
+	if(totalSize <= maxSize)	isMerge = true;
+
+	if(isMerge){
+		FILE * cofp;
+		FILE * com_cofp = fopen(outputFile.c_str(), "w");
+		cerr << "-----save the output distance file: " << outputFile << endl;
+		fprintf(com_cofp, " genome0\tgenome1\tcommon|size0|size1\tjaccard\tmashD\n");
+		int bufSize = 1 << 24;
+		int lengthRead = 0;
+		char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
+		for(int i = 0; i < numThreads; i++)
+		{
+			cofp = fopen(dist_file_list[i].c_str(), "rb+");
+			while(1)
+			{
+				lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
+				//cerr << "the lengthRead is: " << lengthRead << endl;
+				fwrite(bufRead, sizeof(char), lengthRead, com_cofp);
+				if(lengthRead < bufSize) break;
+			}
+			fclose(cofp);
+			remove(dist_file_list[i].c_str());
+			remove(dist_index_list[i].c_str());
+		}
+		remove(folderPath.c_str());
+
+		free(bufRead);
+		fclose(com_cofp);
+	}
+	else{
+		cerr << "-----the output distance file is too big to merge into one single file, saving the result into directory: " << folderPath << endl;
+		FILE * cofp1;
+		string outputIndexFile = outputFile + ".index";
+		cerr << "-----save the index between genomes and distance sub-files into: " << outputIndexFile << endl;
+		FILE * com_cofp1 = fopen(outputIndexFile.c_str(), "w+");
+		fprintf(com_cofp1, "genomeName\tdistFileName\n");
+		int bufSize = 1 << 24;
+		int lengthRead = 0;
+		char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
+		for(int i = 0; i < numThreads; i++){
+			cofp1 = fopen(dist_index_list[i].c_str(), "rb+");
+			while(1){
+				lengthRead = fread(bufRead, sizeof(char), bufSize, cofp1);
+				fwrite(bufRead, sizeof(char), lengthRead, com_cofp1);
+				if(lengthRead < bufSize) break;
+			}
+			fclose(cofp1);
+			remove(dist_index_list[i].c_str());
+		}
+		free(bufRead);
+		fclose(com_cofp1);
+	}
+
+	#ifdef Timer
+	double t3 = get_sec();
+	cerr << "===================time of merge the subFiles into final files is: " << t3 - t2 << endl;
+	#endif
 
 }
 
@@ -221,7 +282,9 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 }
 
 void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
-	double tt1 = get_sec();
+	#ifdef Timer
+	double t0 = get_sec();
+	#endif
 	string refIndexFile = refSketchOut + ".index";
 	string refDictFile = refSketchOut + ".dict";
 	size_t refHashSize;
@@ -244,40 +307,54 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		exit(1);
 	}
 	cerr << "the refHashSize is: " << refHashSize << endl;
-	cerr << "the refTotalIndex is: " << refTotalIndex << endl;
-	cerr << "refTotalHashNumber is: " << refTotalHashNumber << endl;
-	cerr << "the refOffset[n-1] is: " << refOffset[refHashSize-1] << endl;
+	//cerr << "the refTotalIndex is: " << refTotalIndex << endl;
+	//cerr << "refTotalHashNumber is: " << refTotalHashNumber << endl;
+	//cerr << "the refOffset[n-1] is: " << refOffset[refHashSize-1] << endl;
 	
 	int* refIndexArr = (int*)malloc(refTotalHashNumber * sizeof(int));
 	FILE* fp1 = fopen(refDictFile.c_str(), "rb");
 	fread(refIndexArr, sizeof(int), refTotalHashNumber, fp1);
 
-	double t0 = get_sec();
-	cerr << "===================time of read the index and offset sketch file is: " << t0 - tt1 << endl;
+	#ifdef Timer
+	double t1 = get_sec();
+	cerr << "===================time of read the index and offset sketch file is: " << t1 - t0 << endl;
+	#endif
 	size_t numRef = ref_sketches.size();
 	size_t numQuery = query_sketches.size();
 
+	string folderPath = outputFile + ".dir";
+	string command0 = "mkdir -p " + folderPath;
+	system(command0.c_str());
+
 	vector<FILE*> fpArr;
+	vector<FILE*> fpIndexArr;
 	vector<string> dist_file_list;
+	vector<string> dist_index_list;
 	vector<int*> intersectionArr;
 	for(int i = 0; i < numThreads; i++)
 	{
-		string tmpName = outputFile + to_string(i);
+		string tmpName = folderPath + '/' + outputFile + '.' + to_string(i);
 		dist_file_list.push_back(tmpName);
-		FILE * fp0 = fopen(tmpName.c_str(), "w");
+		FILE * fp0 = fopen(tmpName.c_str(), "w+");
 		fpArr.push_back(fp0);
+		string tmpIndexName = outputFile + ".index." + to_string(i);
+		dist_index_list.push_back(tmpIndexName);
+		FILE * fp1 = fopen(tmpIndexName.c_str(), "w+");
+		fpIndexArr.push_back(fp1);
+
 		int * arr = (int*)malloc(numRef * sizeof(int));
 		intersectionArr.push_back(arr);
 	}
-	cerr << "before generate the intersection " << endl;
+	//cerr << "before generate the intersection " << endl;
 
 	string nearestFile = outputFile + ".nearest";
-	FILE* fp2 = fopen(nearestFile.c_str(), "w");
+	FILE* fp2 = fopen(nearestFile.c_str(), "w+");
 	cerr << "=====total: " << numQuery << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(int i = 0; i < numQuery; i++){
 		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
+		fprintf(fpIndexArr[tid], "%s\t%s\n", query_sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef *sizeof(int));
 		for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
 			int hash = query_sketches[i].hashSet[j];
@@ -328,42 +405,87 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	}//end this query genome
 	fclose(fp2);
 
-	cerr << "finished multithread computing" << endl;
+	//cerr << "finished multithread computing" << endl;
 
 	for(int i = 0; i < numThreads; i++)
 	{
 		fclose(fpArr[i]);
+		fclose(fpIndexArr[i]);
 		free(intersectionArr[i]);
 	}
-	cerr << "finished fpArr fclose" << endl;
 
-	double t1 = get_sec();
-	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
+	//cerr << "finished fpArr fclose" << endl;
 
-	FILE * cofp;
-	FILE * com_cofp = fopen(outputFile.c_str(), "w");
-	fprintf(com_cofp, " genome0\tgenome1\tcommon|size0|size1\tjaccard\tmashD\n");
-	int bufSize = 1 << 24;
-	int lengthRead = 0;
-	char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
-	for(int i = 0; i < numThreads; i++)
-	{
-		cofp = fopen(dist_file_list[i].c_str(), "rb+");
-		while(1)
-		{
-			lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
-			//cerr << "the lengthRead is: " << lengthRead << endl;
-			fwrite(bufRead, sizeof(char), lengthRead, com_cofp);
-			if(lengthRead < bufSize) break;
-		}
-		fclose(cofp);
-		remove(dist_file_list[i].c_str());
-	}
-
-	free(bufRead);
-	fclose(com_cofp);
+	#ifdef Timer
 	double t2 = get_sec();
-	cerr << "===================time of merge the subFiles into final files is: " << t2 - t1 << endl;
+	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t2 - t1 << endl;
+	#endif
+
+	uint64_t totalSize = 0;
+	uint64_t maxSize = 1LLU << 32; //max total distance file size 4GB
+	bool isMerge = false;
+	for(int i = 0; i < numThreads; i++){
+		struct stat cur_stat;
+		stat(dist_file_list[i].c_str(), &cur_stat);
+		uint64_t curSize = cur_stat.st_size;
+		totalSize += curSize;
+	}
+	if(totalSize <= maxSize)	isMerge = true;
+
+	if(isMerge){
+		FILE * cofp;
+		FILE * com_cofp = fopen(outputFile.c_str(), "w");
+		cerr << "-----save the output distance file: " << outputFile << endl;
+		fprintf(com_cofp, " genome0\tgenome1\tcommon|size0|size1\tjaccard\tmashD\n");
+		int bufSize = 1 << 24;
+		int lengthRead = 0;
+		char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
+		for(int i = 0; i < numThreads; i++)
+		{
+			cofp = fopen(dist_file_list[i].c_str(), "rb+");
+			while(1)
+			{
+				lengthRead = fread(bufRead, sizeof(char), bufSize, cofp);
+				//cerr << "the lengthRead is: " << lengthRead << endl;
+				fwrite(bufRead, sizeof(char), lengthRead, com_cofp);
+				if(lengthRead < bufSize) break;
+			}
+			fclose(cofp);
+			remove(dist_file_list[i].c_str());
+			remove(dist_index_list[i].c_str());
+		}
+		remove(folderPath.c_str());
+
+		free(bufRead);
+		fclose(com_cofp);
+	}
+	else{
+		cerr << "-----the output distance file is too big to merge into one single file, saving the result into directory: " << folderPath << endl;
+		FILE * cofp1;
+		string outputIndexFile = outputFile + ".index";
+		cerr << "-----save the index between genomes and distance sub-files into: " << outputIndexFile << endl;
+		FILE * com_cofp1 = fopen(outputIndexFile.c_str(), "w+");
+		fprintf(com_cofp1, "genomeName\tdistFileName\n");
+		int bufSize = 1 << 24;
+		int lengthRead = 0;
+		char * bufRead = (char*)malloc((bufSize+1) * sizeof(char));
+		for(int i = 0; i < numThreads; i++){
+			cofp1 = fopen(dist_index_list[i].c_str(), "rb+");
+			while(1){
+				lengthRead = fread(bufRead, sizeof(char), bufSize, cofp1);
+				fwrite(bufRead, sizeof(char), lengthRead, com_cofp1);
+				if(lengthRead < bufSize) break;
+			}
+			fclose(cofp1);
+			remove(dist_index_list[i].c_str());
+		}
+		free(bufRead);
+		fclose(com_cofp1);
+	}
+	#ifdef Timer
+	double t3 = get_sec();
+	cerr << "===================time of merge the subFiles into final files is: " << t3 - t2 << endl;
+	#endif
 
 }
 
