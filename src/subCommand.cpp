@@ -99,28 +99,50 @@ void command_merge(string sketchFile, string outputFile, int threads){
 	if(!isSketchFile(sketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", sketchFile.c_str());
 	}
+	#ifdef Timer_inner
+	double t0 = get_sec();
+	#endif
 	sketchInfo_t info;
 	readSketches(sketches, info, sketchFile);
-	//exit(0);
-	string totalName("");
-	robin_hood::unordered_set<uint32_t> mergedSet;
-	//unordered_set<uint32_t> mergedSet;
+	
+	string totalName = outputFile + " merge sketches";
+	vector<uint32_t> mergedArr;
+
+	#ifdef Timer_inner
+	double t1 = get_sec();
+	cerr << "-----time of read sketches is: " << t1 - t0 << endl;
+	#endif
+
+	size_t dictSize = (1LLU << 32) / 64;
+	uint64_t * dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+	memset(dict, 0, dictSize * sizeof(uint64_t));
 	for(int i = 0; i < sketches.size(); i++){
-		totalName += sketches[i].fileName + '\n';
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
 			uint32_t curHash = sketches[i].hashSet[j];
-			mergedSet.insert(curHash);
+			dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
 		}
 	}
-	totalName = totalName.substr(0, totalName.length()-1);
-	//cout << totalName << endl;
-	cerr << "the size of merged hash set is: " << mergedSet.size() << endl;
-	vector<uint32_t> mergedArr;
-	for(auto x : mergedSet){
-		mergedArr.push_back(x);
+	for(int i = 0; i < dictSize; i++){
+		if(dict[i]){
+			for(int j = 0; j < 64; j++){
+				if((0x8000000000000000LLU >> j) & dict[i]){
+					uint32_t hash = 64 * i + j;
+					mergedArr.push_back(hash);
+				}
+			}
+		}
 	}
 
+	#ifdef Timer_inner
+	double t2 = get_sec();
+		cerr << "-----time of set union by dictionary is: " << t2 - t1 << endl;
+	#endif
+
 	std::sort(mergedArr.begin(), mergedArr.end());
+	#ifdef Timer_inner
+	double t3 = get_sec();
+		cerr << "-----time of sort sketch hash values is: " << t3 - t2 << endl;
+	#endif
 
 	vector<sketch_t> mergedSketches;
 	sketch_t s;
@@ -128,28 +150,89 @@ void command_merge(string sketchFile, string outputFile, int threads){
 	s.fileName = totalName;
 	s.hashSet = mergedArr;
 	mergedSketches.push_back(s);
+	//info.genomeNumber = 1;
 	saveSketches(mergedSketches, info, outputFile);
+	#ifdef Timer_inner
+	double t4 = get_sec();
+	cerr << "-----time of save sketches is: " << t4 - t3 << endl;
+	#endif
 
-	string dictFile = outputFile + ".dict";
-	string indexFile = outputFile + ".index";
-	transSketches(mergedSketches, info, dictFile, indexFile, threads);
+	//string dictFile = outputFile + ".dict";
+	//string indexFile = outputFile + ".index";
+	//transSketches(mergedSketches, info, dictFile, indexFile, threads);
 }
 
 void command_sub(string refSketchFile, string querySketchFile, string outputFile, int threads){
+	#ifdef Timer_inner
+	double t0 = get_sec();
+	#endif
 	vector<sketch_t> refSketches;
 	if(!isSketchFile(refSketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
 	}
 	sketchInfo_t info;
 	readSketches(refSketches, info, refSketchFile);
+
+	#ifdef Timer_inner
+	double t1 = get_sec();
+	cerr << "-----time of read reference sketch: " << refSketchFile << " is: " << t1 - t0 << endl;
+	#endif
 	vector<sketch_t> querySketches;
 	if(!isSketchFile(querySketchFile)){
 		err(errno, "error: %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
 	}
 	readSketches(querySketches, info, querySketchFile);
-	cerr << "the refSketches size is: " << refSketches.size() << endl;
-	cerr << "the querySketches size is: " << querySketches.size() << endl;
 
+	#ifdef Timer_inner
+	double t2 = get_sec();
+	cerr << "-----time of read query sketch: " << querySketchFile << " is: " << t2 - t1 << endl;
+	#endif
+	//cerr << "the refSketches size is: " << refSketches.size() << endl;
+	//cerr << "the querySketches size is: " << querySketches.size() << endl;
+	
+	double t3;
+	vector<sketch_t> subSketches;
+
+if(1){
+	size_t dictSize = (1LLU << 32) / 64;
+	uint64_t * dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+	memset(dict, 0, dictSize * sizeof(uint64_t));
+	for(int i = 0; i < refSketches.size(); i++){
+		for(int j = 0; j < refSketches[i].hashSet.size(); j++){
+			uint32_t curHash = refSketches[i].hashSet[j];
+			dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
+		}
+	}
+
+	#ifdef Timer_inner
+	t3 = get_sec();
+	cerr << "-----time of generate reference dictionary is: " << t3 - t2 << endl;
+	#endif
+
+	#pragma omp parallel for num_threads(threads)
+	for(int i = 0; i < querySketches.size(); i++){
+		sketch_t s;
+		s.fileName = querySketches[i].fileName;
+		s.id = querySketches[i].id;
+		vector<uint32_t> newHashArr;
+		for(int j = 0; j < querySketches[i].hashSet.size(); j++){
+			uint32_t curHash = querySketches[i].hashSet[j];
+			uint64_t isIn = dict[curHash/64] & (0x8000000000000000 >> (curHash % 64));
+			if(!isIn){
+				newHashArr.emplace_back(curHash);
+			}
+		}
+		std::sort(newHashArr.begin(), newHashArr.end());
+		s.hashSet = newHashArr;
+		#pragma omp critical
+		{
+			subSketches.push_back(s);
+		}
+	}
+	std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
+}
+
+else{
 	robin_hood::unordered_set<uint32_t> refHashSet;
 	//unordered_set<uint32_t> refHashSet;
 	for(int i = 0; i < refSketches.size(); i++){
@@ -159,7 +242,11 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	}
 	cerr << "the size of refHashSet is: " << refHashSet.size() << endl;
 
-	vector<sketch_t> subSketches;
+	#ifdef Timer_inner
+	t3 = get_sec();
+	cerr << "-----time of generate reference dictionary is: " << t3 - t2 << endl;
+	#endif
+
 	#pragma omp parallel for num_threads(threads)
 	for(int i = 0; i < querySketches.size(); i++){
 		sketch_t s;
@@ -179,14 +266,22 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 		}
 	}
 	std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
+}
 
-	//printSketches(subSketches, "hello.out");
+	#ifdef Timer_inner
+	double t4 = get_sec();
+	cerr << "-----time of multithreading substraction sketches is: " << t4 - t3 << endl;
+	#endif
 	
 	saveSketches(subSketches, info, outputFile);
 
-	string dictFile = outputFile + ".dict";
-	string indexFile = outputFile + ".index";
-	transSketches(subSketches, info, dictFile, indexFile, threads);
+	#ifdef Timer_inner
+	double t5 = get_sec();
+	cerr << "-----time of save sketches is: " << t5 - t4 << endl;
+	#endif
+	//string dictFile = outputFile + ".dict";
+	//string indexFile = outputFile + ".index";
+	//transSketches(subSketches, info, dictFile, indexFile, threads);
 }
 	
 

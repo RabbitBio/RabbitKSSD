@@ -5,6 +5,7 @@ project(RabbitKSSD)
 set(CMAKE_INSTALL_PREFIX ..)
 option(USE_DEBUG "print the debug information" ON)
 option(USE_Timer "print the time information" ON)
+option(USE_Timer_inner "print the details of time information" ON)
 
 find_package(OpenMP REQUIRED)
 if(OPENMP_FOUND)
@@ -30,6 +31,11 @@ endif()
 if(USE_Timer)
 	set(CMAKE_CXX_FLAGS "-D Timer ${CMAKE_CXX_FLAGS}")
 endif()
+
+if(USE_Timer_inner)
+	set(CMAKE_CXX_FLAGS "-D Timer_inner ${CMAKE_CXX_FLAGS}")
+endif()
+
 
 include_directories(src RabbitFX/build/include)
 link_directories(RabbitFX/build/lib)

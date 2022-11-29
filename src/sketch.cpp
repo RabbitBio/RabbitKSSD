@@ -566,7 +566,7 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 	info.half_k = half_k;
 	info.half_subk = half_subk;
 	info.drlevel = drlevel;
-	info.genomeNumber = sketches.size();
+	//info.genomeNumber = sketches.size();
 	saveSketches(sketches, info, outputFile);
 	cerr << "save the sketches into: " << outputFile << endl;
 
@@ -649,6 +649,7 @@ void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFil
 	//cerr << "the total hash number is: " << totalNumber << endl;
 	//cerr << "the total name length is: " << totalLength << endl;
 	//fwrite(&parameter, sizeof(kssd_parameter_t), 1, fp);
+	info.genomeNumber = sketchNumber;
 	fwrite(&info, sizeof(sketchInfo_t), 1, fp);
 	//fwrite(&sketchNumber, sizeof(int), 1, fp);
 	fwrite(genomeNameSize, sizeof(int), sketchNumber, fp);
