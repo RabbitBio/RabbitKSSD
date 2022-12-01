@@ -16,7 +16,7 @@ int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint3
 setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
-void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int numThreads){
+void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
 
 	#ifdef Timer
 	double t0 = get_sec();
@@ -108,17 +108,32 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 			int common = intersectionArr[tid][j];
 			int size0 = sketches[i].hashSet.size();
 			int size1 = sketches[j].hashSet.size();
-			int denom = size0 + size1 - common;
-			double jaccard = (double)common / denom;
-			double mashD;
-			if(jaccard == 1.0)
-				mashD = 0.0;
-			else if(jaccard == 0.0)
-				mashD = 1.0;
-			else
-				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-			if(mashD < maxDist)
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+			if(!isContainment){
+				int denom = size0 + size1 - common;
+				double jaccard = (double)common / denom;
+				double mashD;
+				if(jaccard == 1.0)
+					mashD = 0.0;
+				else if(jaccard == 0.0)
+					mashD = 1.0;
+				else
+					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
+				if(mashD < maxDist)
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+			}
+			else{
+				int denom = std::min(size0, size1);
+				double containment = (double)common / denom;
+				double AafD;
+				if(containment == 1.0)
+					AafD = 0.0;
+				else if(containment == 0.0)
+					AafD = 1.0;
+				else
+					AafD = (double)-1.0 / kmer_size * log(containment);
+				if(AafD < maxDist)
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, containment, AafD);
+			}
 		}
 	}
 
@@ -281,7 +296,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 
 }
 
-void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -372,35 +387,59 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		int nearRSize = 0;
 		int nearRid = 0;
 		double nearJaccard = 0.0;
+		double nearContainment = 0.0;
 
 		int size1 = query_sketches[i].hashSet.size();
 		for(size_t j = 0; j < numRef; j++){
 			int common = intersectionArr[tid][j];
 			int size0 = ref_sketches[j].hashSet.size();
-			int denom = size0 + size1 - common;
-			double jaccard = (double)common / denom;
-			double mashD;
-			if(jaccard == 1.0)
-				mashD = 0.0;
-			else if(jaccard == 0.0)
-				mashD = 1.0;
-			else
-				mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-			if(mashD < maxDist)
-				//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[j].fileName.c_str(), query_sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
-				fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
-			if(mashD < nearDist){
-				nearDist = mashD;
-				nearCommon = common;
-				nearRSize = size0;
-				nearRid = j;
-				nearJaccard = jaccard;
+			if(!isContainment){
+				int denom = size0 + size1 - common;
+				double jaccard = (double)common / denom;
+				double mashD;
+				if(jaccard == 1.0)
+					mashD = 0.0;
+				else if(jaccard == 0.0)
+					mashD = 1.0;
+				else
+					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
+				if(mashD < maxDist)
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+				if(mashD < nearDist){
+					nearDist = mashD;
+					nearCommon = common;
+					nearRSize = size0;
+					nearRid = j;
+					nearJaccard = jaccard;
+				}
+			}
+			else{
+				int denom = std::min(size0, size1);
+				double containment = (double)common / denom;
+				double AafD;
+				if(containment == 1.0)
+					AafD = 0.0;
+				else if(containment == 0.0)
+					AafD = 1.0;
+				else
+					AafD = (double)-1.0 / kmer_size * log(containment);
+				if(AafD < maxDist)
+					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, containment, AafD);
+				if(AafD < nearDist){
+					nearDist = AafD;
+					nearCommon = common;
+					nearRSize = size0;
+					nearRid = j;
+					nearContainment = containment;
+				}
 			}
 		}
 		#pragma omp critical
 		{
-			//fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", ref_sketches[nearRid].fileName.c_str(), query_sketches[i].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
-			fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
+			if(!isContainment)
+				fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
+			else
+				fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearContainment, nearDist);
 		}
 	}//end this query genome
 	fclose(fp2);

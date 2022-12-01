@@ -49,6 +49,7 @@ int main(int argc, char * argv[]){
 	int threads = get_nprocs_conf();
 	string shuf_file = "shuf_file/bact.shuf";
 	string outputFile = "result.out";
+	int isContainment = 0;
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
@@ -73,6 +74,7 @@ int main(int argc, char * argv[]){
 	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
 	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
+	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	alldist_option_k->excludes(alldist_option_L);
 	alldist_option_s->excludes(alldist_option_L);
 	alldist_option_l->excludes(alldist_option_L);
@@ -88,6 +90,7 @@ int main(int argc, char * argv[]){
 	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
 	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
+	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	dist_option_k->excludes(dist_option_L);
 	dist_option_s->excludes(dist_option_L);
 	dist_option_l->excludes(dist_option_L);
@@ -184,7 +187,7 @@ int main(int argc, char * argv[]){
 			}
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 		}
-		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
+		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, isContainment, threads);
 	}
 	else if(app.got_subcommand(dist)){
 		cerr << "-----run the subcommand: dist" << endl;
@@ -200,7 +203,7 @@ int main(int argc, char * argv[]){
 			}
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 		}
-		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, threads);
+		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, isContainment, threads);
 	}
 	
 	return 0;
