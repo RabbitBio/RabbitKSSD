@@ -29,19 +29,23 @@ void command_convert(string inputDir, bool isQuery, string outputFile, int threa
 	}
 }
 
+
 void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int threads){
 	vector<sketch_t> sketches;
+	sketchInfo_t info;
 	//bool isReference = true;
 	bool success = sketchFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
 }
 
-void command_info(string sketchFile, string outputFile){
+void command_info(string sketchFile, bool isDetail, string outputFile){
 	vector<sketch_t> sketches;
 	sketchInfo_t info;
 	readSketches(sketches, info, sketchFile);
 	cerr << "the number of genome is: " << sketches.size() << endl;
-	//printInfos(sketches, outputFile);
-	printSketches(sketches, outputFile);
+	if(isDetail)
+		printSketches(sketches, outputFile);
+	else
+		printInfos(sketches, outputFile);
 }
 
 void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int isContainment, int threads){

@@ -53,6 +53,7 @@ int main(int argc, char * argv[]){
 	int isContainment = 0;
 	bool isQuery = false;
 	string inputDir = "default";
+	bool isDetail = false;
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
@@ -112,6 +113,7 @@ int main(int argc, char * argv[]){
 	string sketchFile = "default";
 	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation");
 	auto info_option_o = info->add_option("-o, --output", outputFile, "the genome name and hash values in each sketch");
+	auto info_flag_F = convert->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
 	info_option_i->required();
 	info_option_o->required();
 
@@ -136,7 +138,7 @@ int main(int argc, char * argv[]){
 
 	if(app.got_subcommand(info)){
 		cerr << "-----run the subcommand: info" << endl;
-		command_info(sketchFile, outputFile);
+		command_info(sketchFile, isDetail, outputFile);
 		return 0;
 	}
 	else if(app.got_subcommand(merge)){
@@ -177,6 +179,24 @@ int main(int argc, char * argv[]){
 
 	if(app.got_subcommand(sketch)){
 		cerr << "-----run the subcommand: sketch" << endl;
+		if(isSketchFile(refList)){
+			if(!isQuery){
+				vector<sketch_t> sketches;
+				sketchInfo_t info;
+				readSketches(sketches, info, refList);
+				saveSketches(sketches, info, outputFile);
+				double tstart = get_sec();
+				string dictFile = outputFile + ".dict";
+				string indexFile = outputFile + ".index";
+				transSketches(sketches, info, dictFile, indexFile, threads);
+				double tend = get_sec();
+				cerr << "===============the time of transSketches is: " << tend - tstart << endl;
+			}
+			else{
+				cerr << "input is a sketch file, do nothing" << endl;
+			}
+			return 0;
+		}
 		if(*sketch_option_L){
 			cerr << "---read the shuffle file: " << shuf_file << endl;
 			shuffled_dim = read_shuffle_dim(shuf_file);
@@ -188,6 +208,7 @@ int main(int argc, char * argv[]){
 		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 
 		command_sketch(refList, isQuery, outputFile, kssd_parameter, threads);
+		return 0;
 	}
 	else if(app.got_subcommand(alldist)){
 		cerr << "-----run the subcommand: alldist" << endl;
