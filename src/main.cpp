@@ -39,6 +39,7 @@ int main(int argc, char * argv[]){
 	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
 	CLI::App * merge = app.add_subcommand("merge", "merging the sketches into one sketch containing a set of hash values");
 	CLI::App * sub = app.add_subcommand("sub", "subtracting the specific sketch from the query sketches");
+	CLI::App * convert = app.add_subcommand("convert", "converting the sketches from Kssd format to RabbitKSSD format");
 
 	string refList = "default";
 	string queryList = "default";
@@ -50,6 +51,8 @@ int main(int argc, char * argv[]){
 	string shuf_file = "shuf_file/bact.shuf";
 	string outputFile = "result.out";
 	int isContainment = 0;
+	bool isQuery = false;
+	string inputDir = "default";
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
@@ -58,11 +61,19 @@ int main(int argc, char * argv[]){
 	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
 	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	sketch_option_k->excludes(sketch_option_L);
 	sketch_option_s->excludes(sketch_option_L);
 	sketch_option_l->excludes(sketch_option_L);
 	sketch_option_i->required();
 	sketch_option_o->required();
+
+	auto convert_option_i = convert->add_option("-i, --input", inputDir, "input Kssd sketches directory, including cofiles.stat, combco.index.0, combco.0");
+	auto convert_option_o = convert->add_option("-o, --output", outputFile, "output sketches file in RabbitKSSD format");
+	auto convert_option_t = convert->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	auto convert_flag_q = convert->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
+	convert_option_i->required();
+	convert_option_o->required();
 
 
 	
@@ -138,6 +149,11 @@ int main(int argc, char * argv[]){
 		command_sub(refSketchFile, querySketchFile, outputFile, threads);
 		return 0;
 	}
+	else if(app.got_subcommand(convert)){
+		cerr << "-----run the subcommand: convert" << endl;
+		command_convert(inputDir, isQuery, outputFile, threads);
+		return 0;
+	}
 
 	double t1 = get_sec();
 	//cerr << "===================time of init parameters is: " << t1 - t0 << endl;
@@ -171,7 +187,7 @@ int main(int argc, char * argv[]){
 		}
 		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 
-		command_sketch(refList, outputFile, kssd_parameter, threads);
+		command_sketch(refList, isQuery, outputFile, kssd_parameter, threads);
 	}
 	else if(app.got_subcommand(alldist)){
 		cerr << "-----run the subcommand: alldist" << endl;

@@ -22,6 +22,8 @@ using namespace std;
 #define H2(K, HASH_SZ) (1 + (K) % ((HASH_SZ)-1))
 #define HASH(K, I, HASH_SZ) ((H1(K, HASH_SZ) + I * H2(K, HASH_SZ)) % HASH_SZ)
 
+#define PATHLEN 256
+
 bool cmp(uint32_t a, uint32_t b){
 	return a < b;
 }
@@ -29,6 +31,11 @@ bool cmp(uint32_t a, uint32_t b){
 bool cmpSketch(sketch_t s1, sketch_t s2){
 	return s1.id < s2.id;
 }
+
+bool cmpSketchName(sketch_t s1, sketch_t s2){
+	return s1.fileName < s2.fileName;
+}
+
 bool cmpFile(fileInfo_t f1, fileInfo_t f2){
 	return f1.fileSize > f2.fileSize;
 }
@@ -237,7 +244,7 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 }
 
 
-bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
+bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
 	int half_k = parameter.half_k;
 	int half_subk = parameter.half_subk;
 	int drlevel = parameter.drlevel;
@@ -570,7 +577,7 @@ bool sketchFile(string inputFile, bool isReference, int numThreads, kssd_paramet
 	saveSketches(sketches, info, outputFile);
 	cerr << "save the sketches into: " << outputFile << endl;
 
-	if(isReference){
+	if(!isQuery){
 		double tstart = get_sec();
 		string dictFile = outputFile + ".dict";
 		string indexFile = outputFile + ".index";
@@ -592,8 +599,8 @@ void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile
 	hashMapId.resize(hashSize);
 	int * offsetArr = (int*)malloc(hashSize * sizeof(int));
 
-	cerr << "the hashSize is: " << hashSize << endl;
-	cerr << "start the hashMapId " << endl;
+	//cerr << "the hashSize is: " << hashSize << endl;
+	//cerr << "start the hashMapId " << endl;
 	for(int i = 0; i < sketches.size(); i++){
 		#pragma omp parellel for num_threads(numThreads)
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
@@ -622,11 +629,10 @@ void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile
 	fwrite(&totalIndex, sizeof(uint64_t), 1, fp1);
 	fwrite(offsetArr, sizeof(int), hashSize, fp1);
 	double t2 = get_sec();
-	cerr << "the time of write output file is: " << t2 - t1 << endl;
 	fclose(fp1);
-	//cerr << "finshed the dictionary generation of the hash values" << endl;
-	cerr << "the hashSize is: " << hashSize << endl;
-	cerr << "the totalIndex is: " << totalIndex << endl;
+	cerr << "the time of write output file is: " << t2 - t1 << endl;
+	//cerr << "the hashSize is: " << hashSize << endl;
+	//cerr << "the totalIndex is: " << totalIndex << endl;
 
 }
 
@@ -735,6 +741,95 @@ void printSketches(vector<sketch_t> sketches, string outputFile){
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
+}
+
+void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputDir, int numThreads){
+	string stateFile = inputDir + '/' + "cofiles.stat";
+	string indexFile = inputDir + '/' + "combco.index.0";
+	string sketchFile = inputDir + '/' + "combco.0";
+
+	FILE* fp_stat = fopen(stateFile.c_str(), "r");
+	if(!fp_stat){
+		cerr << "cannot open: " << stateFile << endl;
+		exit(1);
+	}
+	co_dstat_t curStat;
+	fread(&curStat, sizeof(co_dstat_t), 1, fp_stat);
+	int shuf_id = curStat.shuf_id;
+	int infile_num = curStat.infile_num;
+	int kmerSize = curStat.kmerlen;
+	int dim_rd_len = curStat.dim_rd_len;
+	info.genomeNumber = infile_num;
+	info.half_k = kmerSize / 2;
+	info.half_subk = 6;
+	info.drlevel = dim_rd_len / 2;
+	uint64_t all_ctx_ct = curStat.all_ctx_ct;
+	//cerr << "the file number is: " << infile_num << endl;
+	//cerr << "finish read curStat " << endl;
+
+	uint32_t* tmp_ctx_ct = (uint32_t*)malloc(sizeof(uint32_t) * infile_num);
+	fread(tmp_ctx_ct, sizeof(uint32_t), infile_num, fp_stat);
+	char ** tmpName = (char**)malloc(infile_num *sizeof(char*));
+	for(int i = 0; i < infile_num; i++){
+		tmpName[i] = (char*)malloc(PATHLEN * sizeof(char));
+		fread(tmpName[i], sizeof(char), PATHLEN, fp_stat);
+	}
+	fclose(fp_stat);
+
+	size_t* cbdcoindex = (size_t*)malloc(sizeof(size_t) * (infile_num+1));
+	FILE* fp_index = fopen(indexFile.c_str(), "rb");
+	if(!fp_index){
+		cerr << "cannot open: " << indexFile << endl;
+		exit(1);
+	}
+	fread(cbdcoindex, sizeof(size_t), infile_num + 1, fp_index);
+	fclose(fp_index);
+	//cerr << "finish read cbdcoindex" << endl;
+
+	FILE* fp_sketch = fopen(sketchFile.c_str(), "rb");
+	if(!fp_sketch){
+		cerr << "cannot open: " << sketchFile << endl;
+		exit(1);
+	}
+
+	int fd;
+	struct stat statbuf;
+	stat(sketchFile.c_str(), &statbuf);
+	size_t fileSize = statbuf.st_size;
+	size_t hashNumber = fileSize / sizeof(uint32_t);
+	//cerr << "the fileSize is: " << fileSize << endl;
+	//cerr << "the hashNumber is: " << hashNumber << endl;
+
+	uint32_t* totalSketchArr = (uint32_t*)malloc(hashNumber* sizeof(uint32_t));
+	fread(totalSketchArr, sizeof(uint32_t), hashNumber, fp_sketch);
+	fclose(fp_sketch);
+
+	#pragma omp parallel for num_threads(numThreads)
+	for(int i = 0; i < infile_num; i++){
+		string curFileName = tmpName[i];
+		vector<uint32_t> curHashArr;
+		for(size_t k = cbdcoindex[i]; k < cbdcoindex[i+1]; k++){
+			//cerr << k << endl;
+			curHashArr.push_back(totalSketchArr[k]);
+		}
+		std::sort(curHashArr.begin(), curHashArr.end());
+		sketch_t tmpSketch;
+		tmpSketch.fileName = curFileName;
+		tmpSketch.hashSet = curHashArr;
+		tmpSketch.id = i;
+		#pragma omp critical
+		{
+		sketches.push_back(tmpSketch);
+		}
+	}
+
+	free(totalSketchArr);
+	free(tmp_ctx_ct);
+	free(tmpName);
+	free(cbdcoindex);
+
+	//std::sort(sketches.begin(), sketches.end(), cmpSketch);
+	//std::sort(sketches.begin(), sketches.end(), cmpSketchName);
 }
 
 

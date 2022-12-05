@@ -8,11 +8,31 @@
 #include "robin_hood.h"
 #include <err.h>
 
-
-void command_sketch(string refList, string outputFile, kssd_parameter_t kssd_parameter, int threads){
+void command_convert(string inputDir, bool isQuery, string outputFile, int threads){
+	double t0 = get_sec();
 	vector<sketch_t> sketches;
-	bool isReference = true;
-	bool success = sketchFile(refList, isReference, threads, kssd_parameter, sketches, outputFile);
+	sketchInfo_t info;
+	convertSketch(sketches, info, inputDir, threads);
+	double t1 = get_sec();
+	cerr << "===================time of converting sketches from Kssd to RabbitKSSD format is " << t1 - t0 << endl;
+	saveSketches(sketches, info, outputFile);
+	double t2 = get_sec();
+	cerr << "===================time of saving sketches to file is " << t2 - t1 << endl;
+
+	if(!isQuery){
+		double tstart = get_sec();
+		string dictFile = outputFile + ".dict";
+		string indexFile = outputFile + ".index";
+		transSketches(sketches, info, dictFile, indexFile, threads);
+		double tend = get_sec();
+		cerr << "===============the time of transSketches is: " << tend - tstart << endl;
+	}
+}
+
+void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int threads){
+	vector<sketch_t> sketches;
+	//bool isReference = true;
+	bool success = sketchFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
 }
 
 void command_info(string sketchFile, string outputFile){

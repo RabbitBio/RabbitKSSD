@@ -104,6 +104,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 			}
 		}
 
+		string strBuf("");
 		for(size_t j = i+1; j < numRef; j++){
 			int common = intersectionArr[tid][j];
 			int size0 = sketches[i].hashSet.size();
@@ -119,7 +120,8 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 				else
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					strBuf += sketches[j].fileName + '\t' + sketches[i].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(jaccard) + '\t' + to_string(mashD) + '\n';
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 			}
 			else{
 				int denom = std::min(size0, size1);
@@ -132,9 +134,12 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 				else
 					AafD = (double)-1.0 / kmer_size * log(containment);
 				if(AafD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, containment, AafD);
+					strBuf += sketches[j].fileName + '\t' + sketches[i].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(containment) + '\t' + to_string(AafD) + '\n';
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, containment, AafD);
 			}
 		}
+		fprintf(fpArr[tid], strBuf.c_str());
+		strBuf = "";
 	}
 
 
@@ -153,7 +158,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	#endif
 
 	uint64_t totalSize = 0;
-	uint64_t maxSize = 1LLU << 32; //max total distance file size 2GB
+	uint64_t maxSize = 1LLU << 32; //max total distance file size 4GB
 	bool isMerge = false;
 	for(int i = 0; i < numThreads; i++){
 		struct stat cur_stat;
@@ -389,6 +394,7 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		double nearJaccard = 0.0;
 		double nearContainment = 0.0;
 
+		string strBuf("");
 		int size1 = query_sketches[i].hashSet.size();
 		for(size_t j = 0; j < numRef; j++){
 			int common = intersectionArr[tid][j];
@@ -404,7 +410,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 				else
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
 				if(mashD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
+					strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(jaccard) + '\t' + to_string(mashD) + '\n';
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
 				if(mashD < nearDist){
 					nearDist = mashD;
 					nearCommon = common;
@@ -424,7 +431,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 				else
 					AafD = (double)-1.0 / kmer_size * log(containment);
 				if(AafD < maxDist)
-					fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, containment, AafD);
+					strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(containment) + '\t' + to_string(AafD) + '\n';
+					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, containment, AafD);
 				if(AafD < nearDist){
 					nearDist = AafD;
 					nearCommon = common;
@@ -434,6 +442,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 				}
 			}
 		}
+		fprintf(fpArr[tid], strBuf.c_str());
+		strBuf = "";
 		#pragma omp critical
 		{
 			if(!isContainment)
