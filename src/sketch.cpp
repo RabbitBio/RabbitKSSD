@@ -148,7 +148,7 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, ro
 		}
 	}
 
-	std::sort(hashArr.begin(), hashArr.end(), cmp);
+	//std::sort(hashArr.begin(), hashArr.end(), cmp);
 	free(co);
 }
 
@@ -239,7 +239,7 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 		}
 	}
 
-	std::sort(hashArr.begin(), hashArr.end(), cmp);
+	//std::sort(hashArr.begin(), hashArr.end(), cmp);
 	free(co);
 }
 
@@ -361,7 +361,7 @@ bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t
 			for(auto x : finalMap){
 				finalHashArr.push_back(x);
 			}
-			std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
+			//std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
 			tmpSketch.fileName = bigFastaArr[i];
 			tmpSketch.id = i;
 			tmpSketch.hashSet = finalHashArr;
@@ -406,7 +406,7 @@ bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t
 			for(auto x : finalMap){
 				finalHashArr.push_back(x);
 			}
-			std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
+			//std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
 			tmpSketch.fileName = bigFastqArr[i];
 			tmpSketch.id = i;
 			tmpSketch.hashSet = finalHashArr;
@@ -548,7 +548,7 @@ bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t
 			}
 		}
 		tmpSketch.id = t + numBigFile;
-		std::sort(hashArr.begin(), hashArr.end(), cmp);
+		//std::sort(hashArr.begin(), hashArr.end(), cmp);
 		tmpSketch.hashSet = hashArr;
 
 		gzclose(fp1);
@@ -564,7 +564,7 @@ bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t
 
 	}//end for, the fileList
 
-	std::sort(sketches.begin(), sketches.end(), cmpSketch);
+	//std::sort(sketches.begin(), sketches.end(), cmpSketch);
 
 	if(!isSketchFile(outputFile)){
 		outputFile = outputFile + ".sketch";

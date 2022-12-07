@@ -246,14 +246,14 @@ if(1){
 				newHashArr.emplace_back(curHash);
 			}
 		}
-		std::sort(newHashArr.begin(), newHashArr.end());
+		//std::sort(newHashArr.begin(), newHashArr.end());
 		s.hashSet = newHashArr;
 		#pragma omp critical
 		{
 			subSketches.push_back(s);
 		}
 	}
-	std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
+	//std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
 }
 
 else{
@@ -282,14 +282,14 @@ else{
 				newHashArr.push_back(x);
 			}
 		}
-		std::sort(newHashArr.begin(), newHashArr.end());
+		//std::sort(newHashArr.begin(), newHashArr.end());
 		s.hashSet = newHashArr;
 		#pragma omp critical
 		{
 		subSketches.push_back(s);
 		}
 	}
-	std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
+	//std::sort(subSketches.begin(), subSketches.end(), cmpSketch);
 }
 
 	#ifdef Timer_inner
