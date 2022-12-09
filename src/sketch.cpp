@@ -812,7 +812,7 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 			//cerr << k << endl;
 			curHashArr.push_back(totalSketchArr[k]);
 		}
-		std::sort(curHashArr.begin(), curHashArr.end());
+		//std::sort(curHashArr.begin(), curHashArr.end());
 		sketch_t tmpSketch;
 		tmpSketch.fileName = curFileName;
 		tmpSketch.hashSet = curHashArr;

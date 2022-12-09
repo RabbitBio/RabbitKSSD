@@ -162,10 +162,10 @@ void command_merge(string sketchFile, string outputFile, int threads){
 		cerr << "-----time of set union by dictionary is: " << t2 - t1 << endl;
 	#endif
 
-	std::sort(mergedArr.begin(), mergedArr.end());
+	//std::sort(mergedArr.begin(), mergedArr.end());
 	#ifdef Timer_inner
 	double t3 = get_sec();
-		cerr << "-----time of sort sketch hash values is: " << t3 - t2 << endl;
+	//cerr << "-----time of sort sketch hash values is: " << t3 - t2 << endl;
 	#endif
 
 	vector<sketch_t> mergedSketches;
