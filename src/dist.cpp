@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <atomic>
 #include <stdint.h>
+#include <queue>
 
 int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3);
 int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b);
@@ -119,8 +120,9 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 					mashD = 1.0;
 				else
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-				if(mashD < maxDist)
+				if(mashD < maxDist){
 					strBuf += sketches[j].fileName + '\t' + sketches[i].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(jaccard) + '\t' + to_string(mashD) + '\n';
+				}
 					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, jaccard, mashD);
 			}
 			else{
@@ -301,7 +303,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 
 }
 
-void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
+void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -367,8 +369,6 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	}
 	//cerr << "before generate the intersection " << endl;
 
-	string nearestFile = outputFile + ".nearest";
-	FILE* fp2 = fopen(nearestFile.c_str(), "w+");
 	cerr << "=====total: " << numQuery << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(int i = 0; i < numQuery; i++){
@@ -395,6 +395,7 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		double nearContainment = 0.0;
 
 		string strBuf("");
+		priority_queue<DistInfo, vector<DistInfo>, cmpDistInfo> curQueue;
 		int size1 = query_sketches[i].hashSet.size();
 		for(size_t j = 0; j < numRef; j++){
 			int common = intersectionArr[tid][j];
@@ -409,15 +410,27 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 					mashD = 1.0;
 				else
 					mashD = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-				if(mashD < maxDist)
-					strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(jaccard) + '\t' + to_string(mashD) + '\n';
-					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, jaccard, mashD);
-				if(mashD < nearDist){
-					nearDist = mashD;
-					nearCommon = common;
-					nearRSize = size0;
-					nearRid = j;
-					nearJaccard = jaccard;
+				if(mashD <= maxDist){
+					if(isNeighbor){
+						DistInfo t0;
+						t0.refName = ref_sketches[j].fileName;
+						t0.common = common;
+						t0.refSize = size0;
+						t0.jorc = jaccard;
+						t0.dist = mashD;
+
+						if(curQueue.size() < maxNeighbor){
+							curQueue.push(t0);
+						}
+						else if(mashD < curQueue.top().dist){
+							curQueue.push(t0);
+							curQueue.pop();
+						}
+					}
+					else{
+						strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(jaccard) + '\t' + to_string(mashD) + '\n';
+
+					}
 				}
 			}
 			else{
@@ -430,29 +443,38 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 					AafD = 1.0;
 				else
 					AafD = (double)-1.0 / kmer_size * log(containment);
-				if(AafD < maxDist)
-					strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(containment) + '\t' + to_string(AafD) + '\n';
-					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[j].fileName.c_str(), common, size0, size1, containment, AafD);
-				if(AafD < nearDist){
-					nearDist = AafD;
-					nearCommon = common;
-					nearRSize = size0;
-					nearRid = j;
-					nearContainment = containment;
+				if(AafD <= maxDist){
+					if(isNeighbor){
+						DistInfo t0;
+						t0.refName = ref_sketches[j].fileName;
+						t0.common = common;
+						t0.refSize = size0;
+						t0.jorc = containment;
+						t0.dist = AafD;
+						if(curQueue.size() < maxNeighbor){
+							curQueue.push(t0);
+						}
+						else if(AafD < curQueue.top().dist){
+							curQueue.push(t0);
+							curQueue.pop();
+						}
+					}
+					else{
+						strBuf += query_sketches[i].fileName + '\t' + ref_sketches[j].fileName + '\t' + to_string(common) + '|' + to_string(size0) + '|' + to_string(size1) + '\t' + to_string(containment) + '\t' + to_string(AafD) + '\n';
+					}
 				}
+			}
+		}
+		if(isNeighbor){
+			while(!curQueue.empty()){
+				DistInfo t0 = curQueue.top();
+				strBuf += query_sketches[i].fileName + '\t' + t0.refName + '\t' + to_string(t0.common) + '|' + to_string(t0.refSize) + '|' + to_string(size1) + '\t' + to_string(t0.jorc) + '\t' + to_string(t0.dist) + '\n';
+				curQueue.pop();
 			}
 		}
 		fprintf(fpArr[tid], strBuf.c_str());
 		strBuf = "";
-		#pragma omp critical
-		{
-			if(!isContainment)
-				fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearJaccard, nearDist);
-			else
-				fprintf(fp2, " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", query_sketches[i].fileName.c_str(), ref_sketches[nearRid].fileName.c_str(), nearCommon, nearRSize, size1, nearContainment, nearDist);
-		}
 	}//end this query genome
-	fclose(fp2);
 
 	//cerr << "finished multithread computing" << endl;
 

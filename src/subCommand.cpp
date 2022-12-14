@@ -75,7 +75,7 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 }
 
 
-void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int isContainment, int threads){
+void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3, t4;
 	string refSketchOut, querySketchOut;
@@ -111,7 +111,7 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	//cerr << "the size of query_sketches is: " << query_sketches.size() << endl;
 
 	//dist(ref_sketches, query_sketches, outputFile, kmer_size, maxDist, threads);
-	index_dist(ref_sketches, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, isContainment, threads);
+	index_dist(ref_sketches, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 
 	//double t5 = get_sec();
 	//cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;

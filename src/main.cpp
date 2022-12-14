@@ -54,6 +54,7 @@ int main(int argc, char * argv[]){
 	bool isQuery = false;
 	string inputDir = "default";
 	bool isDetail = false;
+	int maxNeighbor = 1;
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
@@ -79,7 +80,7 @@ int main(int argc, char * argv[]){
 
 	
 	auto alldist_option_i = alldist->add_option("-i, --input", refList, "list of input genome path, one genome per line");
-	auto alldist_option_m = alldist->add_option("-m, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	auto alldist_option_D = alldist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
 	auto alldist_option_k = alldist->add_option("-k, --halfk", half_k, "the half length of kmer size");
 	auto alldist_option_s = alldist->add_option("-s, --subk", half_subk, "the half length of substring space");
 	auto alldist_option_l = alldist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
@@ -87,6 +88,7 @@ int main(int argc, char * argv[]){
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
 	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
 	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
+	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	alldist_option_k->excludes(alldist_option_L);
 	alldist_option_s->excludes(alldist_option_L);
 	alldist_option_l->excludes(alldist_option_L);
@@ -95,7 +97,7 @@ int main(int argc, char * argv[]){
 
 	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path, one genome per line");
 	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path, one genome per line");
-	auto dist_option_m = dist->add_option("-m, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	auto dist_option_D = dist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
 	auto dist_option_k = dist->add_option("-k, --halfk", half_k, "the half length of kmer size");
 	auto dist_option_s = dist->add_option("-s, --subk", half_subk, "the half length of substring space");
 	auto dist_option_l = dist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
@@ -103,6 +105,7 @@ int main(int argc, char * argv[]){
 	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
 	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
 	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
+	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	dist_option_k->excludes(dist_option_L);
 	dist_option_s->excludes(dist_option_L);
 	dist_option_l->excludes(dist_option_L);
@@ -240,130 +243,16 @@ int main(int argc, char * argv[]){
 			}
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 		}
-		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, isContainment, threads);
+		bool isNeighbor = false;
+		if(*dist_option_N){
+			isNeighbor = true;
+		}
+		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 	}
 	
 	return 0;
 }
 
-//========================================================================================
-//========================================================================================
-//========================================================================================
-
-#ifdef DIST_INDEX
-	uint64_t hash_range = 1 << (4 * (half_k - drlevel));
-	vector< vector<uint64_t> > hash_index_arr[threads];
-	//uint64_t ** hash_index_arr = (uint64_t **)malloc(threads * sizeof(uint64_t *));
-	for(int i = 0; i < threads; i++)
-	{
-		hash_index_arr[i].resize(hash_range);
-	}
-	
-	//double t22 = get_sec();
-	//cerr << "===================time of multiThread generate sketches and index  is: " << t22 - t2 << endl;
-
-	vector< vector<uint64_t> > final_hash_index;
-	final_hash_index.resize(hash_range);
-	for(int i = 0; i < hash_range; i++)
-	{
-		for(int j = 0; j < threads; j++)
-		{
-			final_hash_index[i].insert(final_hash_index[i].end(), hash_index_arr[j][i].begin(), hash_index_arr[j][i].end());
-		}
-	}
-
-	double t33 = get_sec();
-	cerr << "===================time of merge multi index is: " << t33 - t22 << endl;
-
-	get_dist_by_index(final_hash_index, sketches, kmer_size);
-	double t44 = get_sec();
-	cerr << "===================time of get distance matrix by index is: " << t44 - t33 << endl;
-	exit(0);
-	//return 0;//end main
-#endif
-	
-
-
-
-
-#ifdef DIST_INDEX
-void get_dist_by_index(vector< vector<uint64_t> > final_hash_index, vector<sketch_t> sketches, int kmer_size)
-{
-	int genomeNumber = sketches.size();
-	int dist_size = genomeNumber * genomeNumber;
-	uint32_t * common_matrix = (uint32_t*)malloc(dist_size * sizeof(uint32_t));
-	for(int i = 0; i < dist_size; i++)
-	{
-		common_matrix[i] = 0;
-	}
-	//memset(common_matrix, 0, dist_size);
-	cerr << "start to generate the distance matrix " << endl;
-
-	for(int i = 0; i < sketches.size(); i++)
-	{
-		//int dist_offset = i * genomeNumber;
-		for(int j = 0; j < sketches[i].hashSet.size(); j++)
-		{
-			uint64_t ind = sketches[i].hashSet[j];
-			int common_genome_number = final_hash_index[ind].size();
-			for(int k = 0; k < common_genome_number; k++)
-			{
-				int common_gid = final_hash_index[ind][k];
-				common_matrix[i * genomeNumber + common_gid]++;
-			}
-		}
-	}//end for loop to compute the common_matrix
-	cerr << "end to generate the distance matrix " << endl;
-
-	//double time_1 = get_sec();
-	string output = "result.out";
-	vector<string> dist_file_list;
-	vector<FILE*> fpArr;
-	for(int i = 0; i < threads; i++)
-	{
-		string tmpName = output + to_string(i);
-		dist_file_list.push_back(tmpName);
-
-		FILE * fp0 = fopen(tmpName.c_str(), "w");
-		fpArr.push_back(fp0);
-	}
-	
-	//FILE * fp = fopen(output.c_str(), "w");
-	#pragma omp parallel for num_threads(threads) schedule(dynamic)
-	for(int i = 0; i < sketches.size(); i++)
-	{
-		int tid = omp_get_thread_num();
-		for(int j = 0; j < sketches.size(); j++)
-		{
-			int common = common_matrix[i * genomeNumber + j];
-			int union_number = sketches[i].hashSet.size() + sketches[j].hashSet.size() - common;
-			double jaccard = (double)common / union_number;
-			double mashDist;
-			if(jaccard == 0.0)
-				mashDist = 1.0;
-			else if(jaccard == 1.0)
-				mashDist = 0.0;
-			else
-				mashDist = (double)-1.0 / kmer_size * log((2 * jaccard)/(1.0 + jaccard));
-			fprintf(fpArr[tid], "%s\t%s\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, jaccard, mashDist);
-		}
-	}
-	for(int i = 0; i < threads; i++)
-	{
-		fclose(fpArr[i]);
-	}
-	//fclose(fp);
-	double time_2 = get_sec();
-	//cerr << "===================time of output distance.out in index is: " << time_2 - time_1 << endl;
-
-	cerr << "close the result.out" << endl;
-
-	//free(common_matrix);
-	//vector< vector<uint63_t> >().swap(final_hash_index);
-	//vector<sketch_t>().swap(sketches);
-
-}
-#endif
 
 
 
