@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string>
 #include "common.h"
+#include <fstream>
 
 using namespace std;
 
@@ -44,13 +45,17 @@ typedef struct co_dirstat
 	uint64_t all_ctx_ct;
 } co_dstat_t;
 
+bool isFastaList(string inputList);
+bool isFastqList(string inputList);
+
 bool cmpSketch(sketch_t s1, sketch_t s2);
 
 //for result accuracy testing
 bool cmpSketchName(sketch_t s1, sketch_t s2);
 
 bool isSketchFile(string inputFile);
-bool sketchFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile);
+bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile);
+bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, string outputFile);
 void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFile);
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile);
 void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads);

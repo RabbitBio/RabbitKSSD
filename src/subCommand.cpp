@@ -30,11 +30,23 @@ void command_convert(string inputDir, bool isQuery, string outputFile, int threa
 }
 
 
-void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int threads){
+void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, int threads){
 	vector<sketch_t> sketches;
 	sketchInfo_t info;
 	//bool isReference = true;
-	bool success = sketchFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
+	//bool success = sketchFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
+	//bool success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
+	bool success;
+	if(isFastaList(refList)){
+		success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
+	}
+	else if(isFastqList(refList)){
+		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastNumKmer, sketches, outputFile);
+	}
+	else{
+		cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
+		exit(1);
+	}
 }
 
 void command_info(string sketchFile, bool isDetail, string outputFile){
@@ -48,7 +60,7 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 		printInfos(sketches, outputFile);
 }
 
-void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int isContainment, int threads){
+void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, int leastNumKmer, double maxDist, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3;
 	string refSketchOut;
@@ -62,7 +74,18 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 	}
 	else{
 		refSketchOut = refList + ".sketch";
-		bool success = sketchFile(refList, true, threads, kssd_parameter, sketches, refSketchOut);
+		bool success;
+		if(isFastaList(refList)){
+			success = sketchFastaFile(refList, true, threads, kssd_parameter, sketches, refSketchOut);
+		}
+		else if(isFastqList(refList)){
+			success = sketchFastqFile(refList, true, threads, kssd_parameter, leastNumKmer, sketches, refSketchOut);
+		}
+		else{
+			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
+			exit(1);
+		}
+
 		t3 = get_sec();
 		cerr << "===================time of computing sketches and save sketches into file is " << t3 - t2 << endl;
 	}
@@ -75,7 +98,7 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 }
 
 
-void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
+void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, int leastNumKmer, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3, t4;
 	string refSketchOut, querySketchOut;
@@ -89,7 +112,19 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	}
 	else{
 		refSketchOut = refList + ".sketch";
-		bool success0 = sketchFile(refList, true, threads, kssd_parameter, ref_sketches, refSketchOut);
+		bool success0;
+		if(isFastaList(refList)){
+			success0 = sketchFastaFile(refList, true, threads, kssd_parameter, ref_sketches, refSketchOut);
+		}
+		else if(isFastqList(refList)){
+			success0 = sketchFastqFile(refList, true, threads, kssd_parameter, leastNumKmer, ref_sketches, refSketchOut);
+		}
+		else{
+			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
+			exit(1);
+		}
+
+
 		t3 = get_sec();
 		cerr << "===================time of computing reference sketches and save sketches into " << refSketchOut << " is: " << t3 - t2 << endl;
 	}
@@ -104,7 +139,18 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	}
 	else{
 		querySketchOut = queryList + ".sketch";
-		bool success1 = sketchFile(queryList, false, threads, kssd_parameter, query_sketches, querySketchOut);
+		bool success1;
+		if(isFastaList(queryList)){
+			success1 = sketchFastaFile(queryList, false, threads, kssd_parameter, query_sketches, querySketchOut);
+		}
+		else if(isFastqList(queryList)){
+			success1 = sketchFastqFile(queryList, false, threads, kssd_parameter, leastNumKmer, query_sketches, querySketchOut);
+		}
+		else{
+			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
+			exit(1);
+		}
+		
 		t4 = get_sec();
 		cerr << "===================time of computing query sketches and save sketches into " << querySketchOut << " is: " << t4 - t3 << endl;
 	}
@@ -117,7 +163,7 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	//cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
 }
 
-void command_merge(string sketchFile, string outputFile, int threads){
+void command_union(string sketchFile, string outputFile, int threads){
 	
 	vector<sketch_t> sketches;
 	if(!isSketchFile(sketchFile)){
@@ -306,6 +352,41 @@ else{
 	//string dictFile = outputFile + ".dict";
 	//string indexFile = outputFile + ".index";
 	//transSketches(subSketches, info, dictFile, indexFile, threads);
+}
+
+
+void command_merge(string inputList, string outputFile, int threads){
+	ifstream ifs(inputList);
+	string line;
+	vector<string> fileList;
+	while(getline(ifs, line)){
+		if(!isSketchFile(line)){
+			cerr << "the file: " << line << " is not a sketch file in the list file: " << inputList << endl;
+			exit(1);
+		}
+		fileList.push_back(line);
+	}
+	ifs.close();
+
+	vector<sketch_t> resSketches;
+	sketchInfo_t resInfo;
+	readSketches(resSketches, resInfo, fileList[0]);
+
+
+	for(int i = 1; i < fileList.size(); i++){
+		vector<sketch_t> curSketch;
+		sketchInfo_t curInfo;
+		readSketches(curSketch, curInfo, fileList[i]);
+		if(curInfo.half_k != resInfo.half_k || curInfo.half_subk != resInfo.half_subk || curInfo.drlevel != resInfo.drlevel){
+			cerr << "the sketch info in the list file: " << inputList << " is not same, cannot merge" << endl;
+			exit(1);
+		}
+
+		resSketches.insert(resSketches.end(), curSketch.begin(), curSketch.end());
+	}
+
+	saveSketches(resSketches, resInfo, outputFile);
+
 }
 	
 

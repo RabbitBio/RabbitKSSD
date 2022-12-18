@@ -37,9 +37,10 @@ int main(int argc, char * argv[]){
 	CLI::App * info = app.add_subcommand("info", "get the information of the sketches");
 	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
 	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
-	CLI::App * merge = app.add_subcommand("merge", "merging the sketches into one sketch containing a set of hash values");
+	CLI::App * setUnion = app.add_subcommand("union", "computing the set union from multiple sketches");
 	CLI::App * sub = app.add_subcommand("sub", "subtracting the specific sketch from the query sketches");
 	CLI::App * convert = app.add_subcommand("convert", "converting the sketches from Kssd format to RabbitKSSD format");
+	CLI::App * merge = app.add_subcommand("merge", "merge multiple sketch files into one output sketch file");
 
 	string refList = "default";
 	string queryList = "default";
@@ -55,6 +56,7 @@ int main(int argc, char * argv[]){
 	string inputDir = "default";
 	bool isDetail = false;
 	int maxNeighbor = 1;
+	int leastNumKmer = 1;
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
@@ -63,6 +65,7 @@ int main(int argc, char * argv[]){
 	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
 	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	auto sketch_option_n = sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	sketch_option_k->excludes(sketch_option_L);
 	sketch_option_s->excludes(sketch_option_L);
@@ -88,6 +91,7 @@ int main(int argc, char * argv[]){
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
 	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
 	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
+	auto alldist_option_n = alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	alldist_option_k->excludes(alldist_option_L);
 	alldist_option_s->excludes(alldist_option_L);
@@ -106,6 +110,7 @@ int main(int argc, char * argv[]){
 	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
 	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
+	auto dist_option_n = dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	dist_option_k->excludes(dist_option_L);
 	dist_option_s->excludes(dist_option_L);
 	dist_option_l->excludes(dist_option_L);
@@ -116,12 +121,18 @@ int main(int argc, char * argv[]){
 	string sketchFile = "default";
 	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation");
 	auto info_option_o = info->add_option("-o, --output", outputFile, "the genome name and hash values in each sketch");
-	auto info_flag_F = convert->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
+	auto info_flag_F = info->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
 	info_option_i->required();
 	info_option_o->required();
 
-	auto merge_option_i = merge->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches, which is saved from the distance computing");
-	auto merge_option_o = merge->add_option("-o, --output", outputFile, "result file for merged hash values");
+	auto union_option_i = setUnion->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches, which is saved from the distance computing");
+	auto union_option_o = setUnion->add_option("-o, --output", outputFile, "result file for union hash values");
+	auto union_option_t = setUnion->add_option("-t, --threads", threads, "set the thread number");
+	union_option_i->required();
+	union_option_o->required();
+
+	auto merge_option_i = merge->add_option("-i, --input", refList, "list file of sketch files for merging, one file per line");
+	auto merge_option_o = merge->add_option("-o, --output", outputFile, "result sketch file after merging");
 	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number");
 	merge_option_i->required();
 	merge_option_o->required();
@@ -130,7 +141,7 @@ int main(int argc, char * argv[]){
 	string querySketchFile = "default";	
 	auto sub_option_r = sub->add_option("--rs", refSketchFile, "the union sketches for reference sketches, which need to be subtracted from the query sketches");
 	auto sub_option_q = sub->add_option("--qs", querySketchFile, "the query sketches file");
-	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result file for merged hash values");
+	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result file for unioned hash values");
 	auto sub_option_t = sub->add_option("-t, --threads", threads, "set the thread number");
 	sub_option_r->required();
 	sub_option_q->required();
@@ -144,9 +155,9 @@ int main(int argc, char * argv[]){
 		command_info(sketchFile, isDetail, outputFile);
 		return 0;
 	}
-	else if(app.got_subcommand(merge)){
-		cerr << "-----run the subcommand: merge" << endl;
-		command_merge(sketchFile, outputFile, threads);
+	else if(app.got_subcommand(setUnion)){
+		cerr << "-----run the subcommand: union" << endl;
+		command_union(sketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(sub)){
@@ -158,6 +169,12 @@ int main(int argc, char * argv[]){
 		cerr << "-----run the subcommand: convert" << endl;
 		command_convert(inputDir, isQuery, outputFile, threads);
 		return 0;
+	}
+	else if(app.got_subcommand(merge)){
+		cerr << "-----run the subcommand: merge" << endl;
+		command_merge(refList, outputFile, threads);
+		return 0;
+
 	}
 
 	double t1 = get_sec();
@@ -210,7 +227,7 @@ int main(int argc, char * argv[]){
 		}
 		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 
-		command_sketch(refList, isQuery, outputFile, kssd_parameter, threads);
+		command_sketch(refList, isQuery, outputFile, kssd_parameter, leastNumKmer, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(alldist)){
@@ -227,7 +244,7 @@ int main(int argc, char * argv[]){
 			}
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
 		}
-		command_alldist(refList, outputFile, kssd_parameter, kmer_size, maxDist, isContainment, threads);
+		command_alldist(refList, outputFile, kssd_parameter, kmer_size, leastNumKmer, maxDist, isContainment, threads);
 	}
 	else if(app.got_subcommand(dist)){
 		cerr << "-----run the subcommand: dist" << endl;
@@ -247,7 +264,7 @@ int main(int argc, char * argv[]){
 		if(*dist_option_N){
 			isNeighbor = true;
 		}
-		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
+		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 	}
 	
 	return 0;
