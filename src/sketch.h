@@ -45,6 +45,8 @@ typedef struct co_dirstat
 	uint64_t all_ctx_ct;
 } co_dstat_t;
 
+
+bool existFile(string fileName);
 bool isFastaList(string inputList);
 bool isFastqList(string inputList);
 

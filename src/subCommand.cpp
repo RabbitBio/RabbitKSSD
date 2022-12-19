@@ -69,6 +69,11 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
 		readSketches(sketches, info, refList);
+		string indexFile = refSketchOut + ".index";
+		string dictFile = refSketchOut + ".dict";
+		if(!existFile(indexFile) || !existFile(dictFile)){
+			transSketches(sketches, info, dictFile, indexFile, threads);
+		}
 		t3 = get_sec();
 		cerr << "===================time of read sketches from file is " << t3 - t2 << endl;
 	}
@@ -107,6 +112,11 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
 		readSketches(ref_sketches, info, refList);
+		string indexFile = refSketchOut + ".index";
+		string dictFile = refSketchOut + ".dict";
+		if(!existFile(indexFile) || !existFile(dictFile)){
+			transSketches(ref_sketches, info, dictFile, indexFile, threads);
+		}
 		t3 = get_sec();
 		cerr << "===================time of read reference sketches from " << refList << " is: " << t3 - t2 << endl;
 	}

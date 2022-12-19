@@ -40,6 +40,15 @@ bool cmpFile(fileInfo_t f1, fileInfo_t f2){
 	return f1.fileSize > f2.fileSize;
 }
 
+bool existFile(string FileName){
+	if(FILE * fp = fopen(FileName.c_str(), "r")){
+		fclose(fp);
+		return true;
+	}
+	else 
+		return false;
+}
+
 bool isFasta(string inputFile){
 	ifstream ifs(inputFile);
 	string line;
