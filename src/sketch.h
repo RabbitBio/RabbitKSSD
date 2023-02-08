@@ -61,7 +61,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFile);
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile);
 void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads);
-void printSketches(vector<sketch_t> sketches, string outputFile);
-void printInfos(vector<sketch_t> sketches, string outputFile);
+void printSketches(vector<sketch_t>& sketches, string outputFile);
+void printInfos(vector<sketch_t>& sketches, string outputFile);
 void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputDir, int numThreads);
 #endif

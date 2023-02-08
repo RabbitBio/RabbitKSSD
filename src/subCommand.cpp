@@ -50,14 +50,61 @@ void command_sketch(string refList, bool isQuery, string outputFile, kssd_parame
 }
 
 void command_info(string sketchFile, bool isDetail, string outputFile){
-	vector<sketch_t> sketches;
+	//vector<sketch_t> sketches;
 	sketchInfo_t info;
-	readSketches(sketches, info, sketchFile);
-	cerr << "the number of genome is: " << sketches.size() << endl;
-	if(isDetail)
-		printSketches(sketches, outputFile);
-	else
-		printInfos(sketches, outputFile);
+	//readSketches(sketches, info, sketchFile);
+	FILE * fp = fopen(sketchFile.c_str(), "rb+");
+	fread(&info, sizeof(sketchInfo_t), 1, fp);
+	int sketchNumber = info.genomeNumber;
+	cerr << "the number of genome is: " << sketchNumber << endl;
+	int * genomeNameSize = new int[sketchNumber];
+	int * hashSetSize = new int[sketchNumber];
+	fread(genomeNameSize, sizeof(int), sketchNumber, fp);
+	fread(hashSetSize, sizeof(int), sketchNumber, fp);
+	FILE * fp1 = fopen(outputFile.c_str(), "w+");
+	fprintf(fp1, "the number of sketches are: %d\n", sketchNumber);
+	int maxNameLength=1000;
+	char * curName = new char[maxNameLength+1];
+	int maxHashSize = 1 << 24;
+	uint32_t * curPoint = new uint32_t[maxHashSize];
+	for(int i = 0; i < sketchNumber; i++){
+		int curLength = genomeNameSize[i];
+		if(curLength > maxNameLength){
+			maxNameLength = curLength;
+			curName = new char[maxNameLength+1];
+		}
+		//char * curName = new char[curLength+1];
+		int nameLength = fread(curName, sizeof(char), curLength, fp);
+		if(nameLength != curLength){
+			cerr << "error: the read nameLength is not equal to the saved nameLength, exit!" << endl;
+			exit(0);
+		}
+		fprintf(fp1, "%s\t%d\n", curName, hashSetSize[i]);
+		int curSize = hashSetSize[i];
+		if(curSize > maxHashSize){
+			maxHashSize = curSize;
+			curPoint = new uint32_t[maxHashSize];
+		}
+		//uint32_t * curPoint = new uint32_t[curSize];
+		int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
+		if(hashSize != curSize){
+			cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+			exit(0);
+		}
+		if(isDetail){
+			for(int j = 0; j < curSize; j++){
+				fprintf(fp1, "%u\t", curPoint[j]);
+				if(j % 10 == 9) fprintf(fp1, "\n");
+			}
+			fprintf(fp1, "\n");
+		}
+	}
+	fclose(fp);
+	fclose(fp1);
+	//if(isDetail)
+	//	printSketches(sketches, outputFile);
+	//else
+	//	printInfos(sketches, outputFile);
 }
 
 void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, int leastNumKmer, double maxDist, int isContainment, int threads){
@@ -378,24 +425,70 @@ void command_merge(string inputList, string outputFile, int threads){
 	}
 	ifs.close();
 
-	vector<sketch_t> resSketches;
+	int totalSketchNumber = 0;
+	vector<int> totalGenomeNameSize;
+	vector<int> totalHashSetSize;
 	sketchInfo_t resInfo;
-	readSketches(resSketches, resInfo, fileList[0]);
 
+	vector<sketch_t> resSketches;
+	//readSketches(resSketches, resInfo, fileList[0]);
+	FILE * fp0 = fopen(fileList[0].c_str(), "rb+");
+	fread(&resInfo, sizeof(sketchInfo_t), 1, fp0);
+	int sketchNumber0 = resInfo.genomeNumber;
+	int * genomeNameSize0 = new int[sketchNumber0];
+	int * hashSetSize0 = new int[sketchNumber0];
+	fread(genomeNameSize0, sizeof(int), sketchNumber0, fp0);
+	fread(hashSetSize0, sizeof(int), sketchNumber0, fp0);
+	totalSketchNumber += sketchNumber0;
+	for(int j = 0; j < sketchNumber0; j++){
+		totalGenomeNameSize.emplace_back(genomeNameSize0[j]);
+		totalHashSetSize.emplace_back(hashSetSize0[j]);
+	}
 
 	for(int i = 1; i < fileList.size(); i++){
-		vector<sketch_t> curSketch;
+		FILE * fpTmp = fopen(fileList[i].c_str(), "rb+");
 		sketchInfo_t curInfo;
-		readSketches(curSketch, curInfo, fileList[i]);
+		fread(&curInfo, sizeof(sketchInfo_t), 1, fpTmp);
 		if(curInfo.half_k != resInfo.half_k || curInfo.half_subk != resInfo.half_subk || curInfo.drlevel != resInfo.drlevel){
 			cerr << "the sketch info in the list file: " << inputList << " is not same, cannot merge" << endl;
 			exit(1);
 		}
-
-		resSketches.insert(resSketches.end(), curSketch.begin(), curSketch.end());
+		int curSketchNumber = curInfo.genomeNumber;
+		int * genomeNameSize = new int[curSketchNumber];
+		int * hashSetSize = new int[curSketchNumber];
+		fread(genomeNameSize, sizeof(int), curSketchNumber, fpTmp);
+		fread(hashSetSize, sizeof(int), curSketchNumber, fpTmp);
+		totalSketchNumber += curSketchNumber;
+		for(int j = 0; j < curSketchNumber; j++){
+			totalGenomeNameSize.emplace_back(genomeNameSize[j]);
+			totalHashSetSize.emplace_back(hashSetSize[j]);
+		}
+		fclose(fpTmp);
 	}
+	//cerr << "finish the totalSketchNumber calculation" << endl;
 
-	saveSketches(resSketches, resInfo, outputFile);
+	FILE* fp1 = fopen(outputFile.c_str(), "w+");
+	resInfo.genomeNumber = totalSketchNumber;
+	fwrite(&resInfo, sizeof(sketchInfo_t), 1, fp1);
+	fwrite(totalGenomeNameSize.data(), sizeof(int), totalSketchNumber, fp1);
+	fwrite(totalHashSetSize.data(), sizeof(int), totalSketchNumber, fp1);
+	fclose(fp1);
+	
+	FILE* fp = fopen(outputFile.c_str(), "a+");
+	for(int i = 0; i < fileList.size(); i++){
+		vector<sketch_t> curSketches;
+		sketchInfo_t curInfo;
+		readSketches(curSketches, curInfo, fileList[i]);
+
+		int sketchNumber = curSketches.size();
+		for(int i = 0; i < sketchNumber; i++){
+			const char * namePoint = curSketches[i].fileName.c_str();
+			fwrite(namePoint, sizeof(char),curSketches[i].fileName.length(), fp);
+			uint32_t * curPoint = curSketches[i].hashSet.data();
+			fwrite(curPoint, sizeof(uint32_t),curSketches[i].hashSet.size(), fp);
+		}
+	}
+	fclose(fp);
 
 }
 	

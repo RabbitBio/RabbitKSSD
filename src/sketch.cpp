@@ -804,9 +804,9 @@ void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFil
 		uint32_t * curPoint = sketches[i].hashSet.data();
 		fwrite(curPoint, sizeof(uint32_t), hashSetSize[i], fp);
 	}
+	fclose(fp);
 	delete genomeNameSize;
 	delete hashSetSize;
-
 
 }
 
@@ -823,11 +823,19 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 
 	//uint64_t totalNumber = 0;
 	//uint64_t totalLength = 0;
+	
+	int maxNameLength = 1000;
+	char * curName = new char[maxNameLength+1];
+	int maxHashSize = 1 << 24;
+	uint32_t * curPoint = new uint32_t[maxHashSize];
 	for(int i = 0; i < sketchNumber; i++){
 		//read the genome name.
 		int curLength = genomeNameSize[i];
+		if(curLength > maxNameLength){
+			maxNameLength = curLength;
+			curName = new char[maxNameLength+1];
+		}
 		//totalLength += curLength;
-		char * curName = new char[curLength+1];
 		int nameLength = fread(curName, sizeof(char), curLength, fp);
 		if(nameLength != curLength){
 			cerr << "error: the read nameLength is not equal to the saved nameLength, exit!" << endl;
@@ -839,26 +847,32 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 		//read the hash values in each sketch
 		int curSize = hashSetSize[i];
 		//totalNumber += curSize;
-		uint32_t * curPoint = new uint32_t[curSize];
+		if(curSize > maxHashSize){
+			maxHashSize = curSize;
+			curPoint = new uint32_t[maxHashSize];
+		}
 		int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
 		if(hashSize != curSize){
 			cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
 			exit(0);
 		}
 		vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
-		delete [] curPoint;
 		sketch_t s;
 		s.fileName = genomeName;
 		s.id = i;
 		s.hashSet=curHashSet;
 		sketches.push_back(s);
 	}
+	delete [] curPoint;
+	delete [] curName;
+	fclose(fp);
+	cerr << "after the fclose in the readSketches " << endl;
 	//cerr << "the total number of hash value of: " << inputFile << " is: " << totalNumber << endl;
 	//cerr << "the total length of genome name of: " << inputFile << " is: " << totalLength << endl;
 
 }
 
-void printInfos(vector<sketch_t> sketches, string outputFile){
+void printInfos(vector<sketch_t>& sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
 	for(int i = 0; i < sketches.size(); i++){
@@ -867,7 +881,7 @@ void printInfos(vector<sketch_t> sketches, string outputFile){
 	fclose(fp);
 }
 
-void printSketches(vector<sketch_t> sketches, string outputFile){
+void printSketches(vector<sketch_t>& sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
 	for(int i = 0; i < sketches.size(); i++){
