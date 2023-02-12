@@ -27,6 +27,10 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	size_t hashSize;
 	uint64_t totalIndex;
 	FILE * fp0 = fopen(indexFile.c_str(), "rb");
+	if(!fp0){
+		cerr << "error opening the index sketch file: " << indexFile << endl;
+		exit(1);
+	}
 	fread(&hashSize, sizeof(size_t), 1, fp0);
 	fread(&totalIndex, sizeof(uint64_t), 1, fp0);
 	int * sketchSizeArr = (int*)malloc(hashSize * sizeof(int));
@@ -50,6 +54,10 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 
 	int * indexArr = (int*)malloc(totalHashNumber * sizeof(int));
 	FILE * fp1 = fopen(dictFile.c_str(), "rb");
+	if(!fp1){
+		cerr << "error opening the dictionary sketch file: " << dictFile << endl;
+		exit(1);
+	}
 	fread(indexArr, sizeof(int), totalHashNumber, fp1);
 
 

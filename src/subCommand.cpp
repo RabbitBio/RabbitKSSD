@@ -128,10 +128,10 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 		refSketchOut = refList + ".sketch";
 		bool success;
 		if(isFastaList(refList)){
-			success = sketchFastaFile(refList, true, threads, kssd_parameter, sketches, refSketchOut);
+			success = sketchFastaFile(refList, false, threads, kssd_parameter, sketches, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success = sketchFastqFile(refList, true, threads, kssd_parameter, leastNumKmer, sketches, refSketchOut);
+			success = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, sketches, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -171,10 +171,10 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 		refSketchOut = refList + ".sketch";
 		bool success0;
 		if(isFastaList(refList)){
-			success0 = sketchFastaFile(refList, true, threads, kssd_parameter, ref_sketches, refSketchOut);
+			success0 = sketchFastaFile(refList, false, threads, kssd_parameter, ref_sketches, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success0 = sketchFastqFile(refList, true, threads, kssd_parameter, leastNumKmer, ref_sketches, refSketchOut);
+			success0 = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, ref_sketches, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -198,10 +198,10 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 		querySketchOut = queryList + ".sketch";
 		bool success1;
 		if(isFastaList(queryList)){
-			success1 = sketchFastaFile(queryList, false, threads, kssd_parameter, query_sketches, querySketchOut);
+			success1 = sketchFastaFile(queryList, true, threads, kssd_parameter, query_sketches, querySketchOut);
 		}
 		else if(isFastqList(queryList)){
-			success1 = sketchFastqFile(queryList, false, threads, kssd_parameter, leastNumKmer, query_sketches, querySketchOut);
+			success1 = sketchFastqFile(queryList, true, threads, kssd_parameter, leastNumKmer, query_sketches, querySketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;

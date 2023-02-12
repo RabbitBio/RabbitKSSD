@@ -866,7 +866,6 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 	delete [] curPoint;
 	delete [] curName;
 	fclose(fp);
-	cerr << "after the fclose in the readSketches " << endl;
 	//cerr << "the total number of hash value of: " << inputFile << " is: " << totalNumber << endl;
 	//cerr << "the total length of genome name of: " << inputFile << " is: " << totalLength << endl;
 
