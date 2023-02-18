@@ -12,7 +12,7 @@ void command_union(string sketchFile, string outputFile, int threadNumber);
 void command_sub(string refSketchFile, string querySketchFile, string outputFile, int threads);
 void command_sketch(string refList, bool isReference, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, int threads);
 void command_info(string sketchFile, bool isDetail, string outputFile);
-void command_convert(string inputDir, bool isQuery, string outputFile, int threads);
+void command_convert(string inputDir, bool to_Kssd_sketch, bool isQuery, string outputFile, int threads);
 void command_merge(string inputList, string outputFile, int threads);
 
 #endif

@@ -73,10 +73,13 @@ int main(int argc, char * argv[]){
 	sketch_option_i->required();
 	sketch_option_o->required();
 
+
+	bool to_Kssd_sketch = false;
 	auto convert_option_i = convert->add_option("-i, --input", inputDir, "input Kssd sketches directory, including cofiles.stat, combco.index.0, combco.0");
 	auto convert_option_o = convert->add_option("-o, --output", outputFile, "output sketches file in RabbitKSSD format");
 	auto convert_option_t = convert->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
 	auto convert_flag_q = convert->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
+	auto convert_flag_reverse = convert->add_flag("--reverse", to_Kssd_sketch, "convert sketch file from RabbitKSSD format to Kssd format");
 	convert_option_i->required();
 	convert_option_o->required();
 
@@ -167,7 +170,7 @@ int main(int argc, char * argv[]){
 	}
 	else if(app.got_subcommand(convert)){
 		cerr << "-----run the subcommand: convert" << endl;
-		command_convert(inputDir, isQuery, outputFile, threads);
+		command_convert(inputDir, to_Kssd_sketch, isQuery, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(merge)){
@@ -204,7 +207,9 @@ int main(int argc, char * argv[]){
 				vector<sketch_t> sketches;
 				sketchInfo_t info;
 				readSketches(sketches, info, refList);
-				saveSketches(sketches, info, outputFile);
+				string cmd0 = "cp " + refList + ' ' + outputFile;
+				system(cmd0.c_str());
+				//saveSketches(sketches, info, outputFile);
 				double tstart = get_sec();
 				string dictFile = outputFile + ".dict";
 				string indexFile = outputFile + ".index";

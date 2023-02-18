@@ -720,48 +720,45 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 
 
 
-
-
-
-
-
-
-
-
-void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads){
+void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads){
 	double t0 = get_sec();
 	int half_k = info.half_k;
 	int drlevel = info.drlevel;
 	size_t hashSize = 1 << (4 * (half_k - drlevel));
 	vector<vector<int>> hashMapId;
-	hashMapId.resize(hashSize);
-	int * offsetArr = (int*)malloc(hashSize * sizeof(int));
+	for(int i = 0; i < hashSize; i++){
+		hashMapId.push_back(vector<int>());
+	}
+	int * offsetArr = (int*)calloc(hashSize, sizeof(int));
 
 	//cerr << "the hashSize is: " << hashSize << endl;
 	//cerr << "start the hashMapId " << endl;
+	cerr << "the thread number is: " << numThreads << endl;
 	for(int i = 0; i < sketches.size(); i++){
-		#pragma omp parellel for num_threads(numThreads)
+		#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 		for(int j = 0; j < sketches[i].hashSet.size(); j++){
 			int hash = sketches[i].hashSet[j];
-			//cerr << "the hash: " << hash << endl;
-			hashMapId[hash].emplace_back(i);
+			hashMapId[hash].push_back(i);
 		}
 	}
-	//cerr << "finish the hashMapId " << endl;
-	
-	double t1 = get_sec();
-	cerr << "the time of transpose sketch is: " << t1 - t0 << endl;
+	cerr << "finish the hashMapId " << endl;
+	double tt0 = get_sec();
+	cerr << "the time of generate the idx by multiple threads are: " << tt0 - t0 << endl;
 
 	FILE * fp0 = fopen(dictFile.c_str(), "w+");
 	uint64_t totalIndex = 0;
-	for(size_t i = 0; i < hashSize; i++){
-		offsetArr[i] = hashMapId[i].size();
-		if(hashMapId[i].size() != 0){
-			fwrite(hashMapId[i].data(), sizeof(int), hashMapId[i].size(), fp0);
-			totalIndex += hashMapId[i].size();
+	for(int hash = 0; hash < hashSize; hash++){
+		if(hashMapId[hash].size() != 0){
+			fwrite(hashMapId[hash].data(), sizeof(int), hashMapId[hash].size(), fp0);
+			totalIndex += hashMapId[hash].size();
+			offsetArr[hash] = hashMapId[hash].size();
 		}
 	}
 	fclose(fp0);
+	
+	double t1 = get_sec();
+	cerr << "the time of merge multiple idx into final hashMap is: " << t1 - tt0 << endl;
+
 	FILE * fp1 = fopen(indexFile.c_str(), "w+");
 	fwrite(&hashSize, sizeof(size_t), 1, fp1);
 	fwrite(&totalIndex, sizeof(uint64_t), 1, fp1);
@@ -915,8 +912,15 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	info.half_subk = 6;
 	info.drlevel = dim_rd_len / 2;
 	uint64_t all_ctx_ct = curStat.all_ctx_ct;
-	//cerr << "the file number is: " << infile_num << endl;
-	//cerr << "finish read curStat " << endl;
+
+	//cerr << "sizeof size_t is: " << sizeof(size_t) << endl;
+	//cerr << "sizeof bool is: " << sizeof(bool) << endl;
+	//cerr << "sizeof co_dstat_t is: " << sizeof(co_dstat_t) << endl;
+	//cerr << "shuf_id is: " << shuf_id << endl;
+	//cerr << "infile_num is: " << infile_num << endl;
+	//cerr << "kmerSize is: " << kmerSize << endl;
+	//cerr << "dim_rd_len is: " << dim_rd_len << endl;
+	//cerr << "all_ctx_ct is: " << all_ctx_ct << endl;
 
 	uint32_t* tmp_ctx_ct = (uint32_t*)malloc(sizeof(uint32_t) * infile_num);
 	fread(tmp_ctx_ct, sizeof(uint32_t), infile_num, fp_stat);
@@ -935,7 +939,6 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	}
 	fread(cbdcoindex, sizeof(size_t), infile_num + 1, fp_index);
 	fclose(fp_index);
-	//cerr << "finish read cbdcoindex" << endl;
 
 	FILE* fp_sketch = fopen(sketchFile.c_str(), "rb");
 	if(!fp_sketch){
@@ -948,41 +951,120 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	stat(sketchFile.c_str(), &statbuf);
 	size_t fileSize = statbuf.st_size;
 	size_t hashNumber = fileSize / sizeof(uint32_t);
+	if(hashNumber != all_ctx_ct){
+		cerr << "the total hash number is not match to the state info, exit" << endl;
+		exit(1);
+	}
 	//cerr << "the fileSize is: " << fileSize << endl;
 	//cerr << "the hashNumber is: " << hashNumber << endl;
 
-	uint32_t* totalSketchArr = (uint32_t*)malloc(hashNumber* sizeof(uint32_t));
-	fread(totalSketchArr, sizeof(uint32_t), hashNumber, fp_sketch);
-	fclose(fp_sketch);
-
-	#pragma omp parallel for num_threads(numThreads)
+	int maxArrSize = 1 << 24;
+	uint32_t* curSketchArr = (uint32_t*)malloc(maxArrSize * sizeof(uint32_t));
 	for(int i = 0; i < infile_num; i++){
 		string curFileName = tmpName[i];
-		vector<uint32_t> curHashArr;
-		for(size_t k = cbdcoindex[i]; k < cbdcoindex[i+1]; k++){
-			//cerr << k << endl;
-			curHashArr.push_back(totalSketchArr[k]);
+		size_t curHashNumber = cbdcoindex[i+1] - cbdcoindex[i];
+		if(curHashNumber > maxArrSize){
+			maxArrSize = curHashNumber;
+			//curSketchArr = (uint32_t*)realloc(curSketchArr, maxArrSize * sizeof(uint32_t));
+			curSketchArr = (uint32_t*)malloc(maxArrSize * sizeof(uint32_t));
 		}
-		//std::sort(curHashArr.begin(), curHashArr.end());
+		vector<uint32_t> curHashArr;
+		fread(curSketchArr, sizeof(uint32_t), curHashNumber, fp_sketch);
+		for(size_t k = 0; k < curHashNumber; k++){
+			curHashArr.emplace_back(curSketchArr[k]);
+		}
 		sketch_t tmpSketch;
 		tmpSketch.fileName = curFileName;
 		tmpSketch.hashSet = curHashArr;
 		tmpSketch.id = i;
-		#pragma omp critical
-		{
 		sketches.push_back(tmpSketch);
-		}
-	}
 
-	free(totalSketchArr);
+	}
+	fclose(fp_sketch);
+	free(curSketchArr);
 	free(tmp_ctx_ct);
 	free(tmpName);
 	free(cbdcoindex);
 
-	//std::sort(sketches.begin(), sketches.end(), cmpSketch);
-	//std::sort(sketches.begin(), sketches.end(), cmpSketchName);
 }
 
+
+void convert_from_RabbitKSSDSketch_to_KssdSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string outputDir, int numThreads){
+	string command0 = "mkdir -p " + outputDir;
+	system(command0.c_str());
+	string stateFile = outputDir + '/' + "cofiles.stat";
+	string indexFile = outputDir + '/' + "combco.index.0";
+	string sketchFile = outputDir + '/' + "combco.0";
+
+	int genomeNumber = sketches.size();
+	if(genomeNumber != info.genomeNumber){
+		cerr << "mismatch of sketches sizes and info genome number " << endl;
+		exit(1);
+	}
+	//for stateFile
+	uint64_t all_ctx_ct = 0;
+	uint32_t* tmp_ctx_ct = (uint32_t*)malloc(sizeof(uint32_t) * genomeNumber);
+	char ** tmpName = (char**)malloc(genomeNumber * sizeof(char*));
+
+	//for index file
+	size_t * cbdcoindex = (size_t*)calloc(sizeof(size_t), genomeNumber+1);
+
+	FILE* fp_sketch = fopen(sketchFile.c_str(), "w");
+	if(!fp_sketch){
+		cerr << "cannot open: " << sketchFile << endl;
+		exit(1);
+	}
+
+	for(int i = 0; i < genomeNumber; i++){
+		uint32_t* curPoint = sketches[i].hashSet.data();
+		fwrite(curPoint, sizeof(uint32_t), sketches[i].hashSet.size(), fp_sketch);
+		string curFileName = sketches[i].fileName;
+		tmpName[i] = (char*)malloc(PATHLEN * sizeof(char));
+		memcpy(tmpName[i], curFileName.data(), curFileName.length()+1);
+		//printf("%s\n", tmpName);
+		tmp_ctx_ct[i] = sketches[i].hashSet.size();
+		all_ctx_ct += tmp_ctx_ct[i];
+		cbdcoindex[i+1] = cbdcoindex[i] + sketches[i].hashSet.size();
+	}
+	fclose(fp_sketch);
+
+	FILE* fp_index = fopen(indexFile.c_str(), "w+");
+	if(!fp_index){
+		cerr << "cannot open: " << indexFile << endl;
+		exit(1);
+	}
+	fwrite(cbdcoindex, sizeof(size_t), genomeNumber+1, fp_index);
+	fclose(fp_index);
+	
+	//for state file: 
+	//1. co_dstat_t curStat;
+	//2. uint32_t tmp_ctx_ct[infile_num]
+	//3. char tmp_Name[infile_num][PATHLEN]
+	
+	FILE* fp_stat = fopen(stateFile.c_str(), "w+");
+	if(!fp_stat){
+		cerr << "cannot open: " << stateFile << endl;
+		exit(1);
+	}
+	co_dstat_t curStat;
+	curStat.shuf_id = 1802721957;
+	curStat.koc = false;
+	curStat.kmerlen = info.half_k * 2;
+	curStat.dim_rd_len = info.drlevel * 2;
+	curStat.comp_num = 1;
+	curStat.infile_num = info.genomeNumber;
+	curStat.all_ctx_ct = all_ctx_ct; //need to update
+
+	fwrite(&curStat, sizeof(co_dstat_t), 1, fp_stat);
+	fwrite(tmp_ctx_ct, sizeof(uint32_t), genomeNumber, fp_stat);
+	cerr << "start the tmpName fwrite" << endl;
+	for(int i = 0; i < genomeNumber; i++){
+		fwrite(tmpName[i], sizeof(char), PATHLEN, fp_stat);
+	}
+	cerr << "finish the tmpName fwrite" << endl;
+	fclose(fp_stat);
+
+}
 
 
 

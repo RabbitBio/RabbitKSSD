@@ -60,8 +60,9 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, string outputFile);
 void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFile);
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile);
-void transSketches(vector<sketch_t> sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads);
+void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads);
 void printSketches(vector<sketch_t>& sketches, string outputFile);
 void printInfos(vector<sketch_t>& sketches, string outputFile);
 void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputDir, int numThreads);
+void convert_from_RabbitKSSDSketch_to_KssdSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string outputDir, int numThreads);
 #endif

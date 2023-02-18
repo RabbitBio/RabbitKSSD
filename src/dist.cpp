@@ -11,14 +11,17 @@
 #include <atomic>
 #include <stdint.h>
 #include <queue>
+#include <algorithm>
 
 int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3);
 int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b);
 setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
-void index_tridist(vector<sketch_t> sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
+void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
 
+
+	cerr << "start index_tridist" << endl;
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -36,7 +39,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	int * sketchSizeArr = (int*)malloc(hashSize * sizeof(int));
 	fread(sketchSizeArr, sizeof(int), hashSize, fp0);
 
-	int * offset = (int*)malloc(hashSize * sizeof(int));
+	size_t * offset = (size_t*)malloc(hashSize * sizeof(size_t));
 	uint64_t totalHashNumber = 0;
 	for(int i = 0; i < hashSize; i++){
 		totalHashNumber += sketchSizeArr[i];
@@ -47,6 +50,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 		cerr << "error of the total hash number" << endl;
 		exit(1);
 	}
+
 	//cerr << "the hashSize is: " << hashSize << endl;
 	//cerr << "totalIndex is: " << totalIndex << endl;
 	//cerr << "totalHashNumber is: " << totalHashNumber << endl;
@@ -60,6 +64,7 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 	}
 	fread(indexArr, sizeof(int), totalHashNumber, fp1);
 
+	cerr << "after the read index and dict file" << endl;
 
 	#ifdef Timer
 	double t1 = get_sec();
@@ -105,8 +110,8 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
 			int hash = sketches[i].hashSet[j];
 			if(sketchSizeArr[hash] == 0) continue;
-			int start = hash > 0 ? offset[hash-1] : 0;
-			int end = offset[hash];
+			size_t start = hash > 0 ? offset[hash-1] : 0;
+			size_t end = offset[hash];
 			for(size_t k = start; k < end; k++){
 				size_t curIndex = indexArr[k];
 				intersectionArr[tid][curIndex]++;
@@ -236,8 +241,16 @@ void index_tridist(vector<sketch_t> sketches, string refSketchOut, string output
 
 }
 
-void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+	
+	double t00 = get_sec();
+	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
+	for(int i = 0; i < sketches.size(); i++){
+		std::sort(sketches[i].hashSet.begin(), sketches[i].hashSet.end());
+	}
+
 	double t0 = get_sec();
+	cerr << "time of multithreading sort sketches hash values is: " << t0 - t00 << endl;
 	vector<string> dist_file_list;
 	vector<FILE*> fpArr;
 	for(int i = 0; i < numThreads; i++)
@@ -251,6 +264,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(int i = 0; i < sketches.size(); i++)
 	{
+		//if(i % 300 == 0) cerr << "finish: " << i << endl;
 		int tid = omp_get_thread_num();
 		for(int j = i+1; j < sketches.size(); j++)
 		{
@@ -311,7 +325,7 @@ void tri_dist(vector<sketch_t> sketches, string outputFile, int kmer_size, doubl
 
 }
 
-void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
+void index_dist(vector<sketch_t>& ref_sketches, string refSketchOut, vector<sketch_t>& query_sketches, string outputFile, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -325,7 +339,7 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 	int* refSketchSizeArr = (int*)malloc(refHashSize * sizeof(int));
 	fread(refSketchSizeArr, sizeof(int), refHashSize, fp0);
 
-	int* refOffset = (int*)malloc(refHashSize * sizeof(int));
+	size_t* refOffset = (size_t*)malloc(refHashSize * sizeof(int));
 	uint64_t refTotalHashNumber = 0;
 	for(int i = 0; i < refHashSize; i++){
 		refTotalHashNumber += refSketchSizeArr[i];
@@ -387,8 +401,8 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 		for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
 			int hash = query_sketches[i].hashSet[j];
 			if(refSketchSizeArr[hash] == 0) continue;
-			int start = hash > 0 ? refOffset[hash-1] : 0;
-			int end = refOffset[hash];
+			size_t start = hash > 0 ? refOffset[hash-1] : 0;
+			size_t end = refOffset[hash];
 			for(size_t k = start; k < end; k++){
 				size_t curIndex = refIndexArr[k];
 				intersectionArr[tid][curIndex]++;
@@ -568,8 +582,20 @@ void index_dist(vector<sketch_t> ref_sketches, string refSketchOut, vector<sketc
 
 }
 
-void dist(vector<sketch_t> ref_sketches, vector<sketch_t> query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+void dist(vector<sketch_t>& ref_sketches, vector<sketch_t>& query_sketches, string outputFile, int kmer_size, double maxDist, int numThreads){
+
+	double t00 = get_sec();
+	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
+	for(int i = 0; i < ref_sketches.size(); i++){
+		std::sort(ref_sketches[i].hashSet.begin(), ref_sketches[i].hashSet.end());
+	}
+	
+	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
+	for(int i = 0; i < query_sketches.size(); i++){
+		std::sort(query_sketches[i].hashSet.begin(), query_sketches[i].hashSet.end());
+	}
 	double t0 = get_sec();
+	cerr << "the time of sort reference and query sketch is: " << t0 - t00 << endl;
 	vector<string> dist_file_list;
 	vector<FILE*> fpArr;
 	for(int i = 0; i < numThreads; i++)
