@@ -1047,7 +1047,7 @@ void convert_from_RabbitKSSDSketch_to_KssdSketch(vector<sketch_t>& sketches, ske
 		exit(1);
 	}
 	co_dstat_t curStat;
-	curStat.shuf_id = 1802721957;
+	curStat.shuf_id = 348842630;
 	curStat.koc = false;
 	curStat.kmerlen = info.half_k * 2;
 	curStat.dim_rd_len = info.drlevel * 2;

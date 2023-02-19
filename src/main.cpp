@@ -165,7 +165,8 @@ int main(int argc, char * argv[]){
 	}
 	else if(app.got_subcommand(sub)){
 		cerr << "-----run the subcommand: sub" << endl;
-		command_sub(refSketchFile, querySketchFile, outputFile, threads);
+		//command_sub(refSketchFile, querySketchFile, outputFile, threads);
+		new_command_sub(refSketchFile, querySketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(convert)){

@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include "robin_hood.h"
 #include <err.h>
+#include <queue>
+#include <omp.h>
 
 void command_convert(string inputDir, bool to_Kssd_sketch, bool isQuery, string outputFile, int threads){
 	if(!to_Kssd_sketch){
@@ -303,6 +305,165 @@ void command_union(string sketchFile, string outputFile, int threads){
 	//string indexFile = outputFile + ".index";
 	//transSketches(mergedSketches, info, dictFile, indexFile, threads);
 }
+
+void new_command_sub(string refSketchFile, string querySketchFile, string outputFile, int threads){
+	#ifdef Timer_inner
+	double t0 = get_sec();
+	#endif
+	vector<sketch_t> refSketches;
+	if(!isSketchFile(refSketchFile)){
+		err(errno, "error: %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
+	}
+	sketchInfo_t info;
+	readSketches(refSketches, info, refSketchFile);
+
+	#ifdef Timer_inner
+	double t1 = get_sec();
+	cerr << "-----time of read reference sketch: " << refSketchFile << " is: " << t1 - t0 << endl;
+	#endif
+
+	size_t dictSize = (1LLU << 32) / 64;
+	uint64_t * dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+	memset(dict, 0, dictSize * sizeof(uint64_t));
+	for(int i = 0; i < refSketches.size(); i++){
+		for(int j = 0; j < refSketches[i].hashSet.size(); j++){
+			uint32_t curHash = refSketches[i].hashSet[j];
+			dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
+		}
+	}
+
+	#ifdef Timer_inner
+	double t2 = get_sec();
+	cerr << "-----time of generate reference dictionary is: " << t2 - t1 << endl;
+	#endif
+
+	vector<sketch_t> querySketches;
+	if(!isSketchFile(querySketchFile)){
+		err(errno, "error: %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
+	}
+	//readSketches(querySketches, info, querySketchFile);
+	sketchInfo_t query_info;
+	FILE* fp_query = fopen(querySketchFile.c_str(), "rb");
+	if(!fp_query){
+		cerr << "error open the file: " << querySketchFile << endl;
+		exit(1);
+	}
+	fread(&query_info, sizeof(sketchInfo_t), 1, fp_query);
+	int query_num = query_info.genomeNumber;
+	int * genomeNameSize = new int[query_num];
+	int * hashSetSize = new int[query_num];
+	fread(genomeNameSize, sizeof(int), query_num, fp_query);
+	fread(hashSetSize, sizeof(int), query_num, fp_query);
+
+	int maxNameLength = 1000;
+	char * curName = new char[maxNameLength+1];
+	int maxHashSize = 1 << 24;
+	uint32_t * curPoint = new uint32_t[maxHashSize];
+
+	vector<sketch_t> subSketches;
+	queue<sketch_t> sketch_queue;
+	int index = 0;
+	int produced_num = 0;
+	int solved_num = 0;
+	omp_lock_t queue_lock;
+	omp_lock_t vector_lock;
+	omp_init_lock(&queue_lock);
+	omp_init_lock(&vector_lock);
+	sketch_t s_arr[threads];
+	#pragma omp parallel num_threads(threads)
+	{
+		int tid = omp_get_thread_num();
+		//cerr << "DEBUG: the tid is: " << tid << endl;
+		if(tid == 0)//producer
+		{
+			//cerr << "DEBUG: enter the producer " << endl;
+			for(index = 0; index < query_num; index++){
+				int curLength = genomeNameSize[index];
+				if(curLength > maxNameLength){
+					maxNameLength = curLength;
+					curName = new char[maxNameLength+1];
+				}
+				int nameLength = fread(curName, sizeof(char), curLength, fp_query);
+				string genomeName;
+				genomeName.assign(curName, curName + curLength);
+
+				int curSize = hashSetSize[index];
+				if(curSize > maxHashSize){
+					maxHashSize = curSize;
+					curPoint = new uint32_t[maxHashSize];
+				}
+				int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp_query);
+
+				vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
+				sketch_t s;
+				s.fileName = genomeName;
+				s.id = index;
+				s.hashSet=curHashSet;
+				//#pragma omp critical
+				omp_set_lock(&queue_lock);
+				{
+					sketch_queue.push(s);
+					produced_num++;
+					//cerr << "DEBUG: index is: " << index << endl;
+				}
+				omp_unset_lock(&queue_lock);
+			}//end for
+		}
+		else//consumer
+		{
+			//while(solved_num < query_num){//may conflict when using multiple threads.
+			while(1){
+				omp_set_lock(&queue_lock);
+				{
+					if(sketch_queue.empty()){
+						//cerr << "DEBUG: sketch_queue is empty " << tid << endl;
+						omp_unset_lock(&queue_lock);
+						if(solved_num >= query_num)	break;
+						continue;
+					}
+					s_arr[tid] = sketch_queue.front();
+					sketch_queue.pop();
+				}
+				omp_unset_lock(&queue_lock);
+				
+				vector<uint32_t> newHashArr;
+				//cerr << "DEBUG: s.hashSet.size() is: " << s.hashSet.size() << endl;
+				for(int j = 0; j < s_arr[tid].hashSet.size(); j++){
+					uint32_t curHash = s_arr[tid].hashSet[j];
+					uint64_t isIn = dict[curHash/64] & (0x8000000000000000 >> (curHash % 64));
+					if(!isIn){
+						newHashArr.emplace_back(curHash);
+					}
+				}
+				sketch_t new_s;
+				new_s.fileName = s_arr[tid].fileName;
+				new_s.id = s_arr[tid].id;
+				new_s.hashSet = newHashArr;
+				omp_set_lock(&vector_lock);
+				{
+					subSketches.push_back(new_s);
+					solved_num++;
+					//cerr << "DEBUG: solved_num is: " << solved_num << endl;
+				}
+				omp_unset_lock(&vector_lock);
+			}
+		}
+	}
+
+	#ifdef Timer_inner
+	double t3 = get_sec();
+	cerr << "-----time of substraction is: " << t3 - t2 << endl;
+	#endif
+
+	saveSketches(subSketches, info, outputFile);
+
+	#ifdef Timer_inner
+	double t4 = get_sec();
+	cerr << "-----time of save sketches is: " << t4 - t3 << endl;
+	#endif
+
+}
+
 
 void command_sub(string refSketchFile, string querySketchFile, string outputFile, int threads){
 	#ifdef Timer_inner
