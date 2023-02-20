@@ -360,6 +360,17 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 	int maxHashSize = 1 << 24;
 	uint32_t * curPoint = new uint32_t[maxHashSize];
 
+	FILE* fp_result = fopen(outputFile.c_str(), "w+");
+	if(!fp_result){
+		cerr << "error open the output file: " << outputFile << endl;
+		exit(1);
+	}
+	int * out_genomeNameSize = new int [query_num];
+	int * out_hashSetSize = new int[query_num];
+	fwrite(&query_info, sizeof(sketchInfo_t), 1, fp_result);
+	fwrite(out_genomeNameSize, sizeof(int), query_num, fp_result);
+	fwrite(out_hashSetSize, sizeof(int), query_num, fp_result);
+
 	vector<sketch_t> subSketches;
 	queue<sketch_t> sketch_queue;
 	int index = 0;
@@ -411,7 +422,7 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 		}
 		else//consumer
 		{
-			//while(solved_num < query_num){//may conflict when using multiple threads.
+			//while(solved_num < query_num)//may conflict when using multiple threads.
 			while(1){
 				omp_set_lock(&queue_lock);
 				{
@@ -441,21 +452,35 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 				new_s.hashSet = newHashArr;
 				omp_set_lock(&vector_lock);
 				{
-					subSketches.push_back(new_s);
+					//subSketches.push_back(new_s);
+					//solved_num++;
+					////cerr << "DEBUG: solved_num is: " << solved_num << endl;
+					const char * namePoint = new_s.fileName.c_str();
+					int curNameLength = new_s.fileName.length();
+					uint32_t * curPoint = new_s.hashSet.data();
+					int curHashSetSize = new_s.hashSet.size();
+					fwrite(namePoint, sizeof(char), curNameLength, fp_result);
+					fwrite(curPoint, sizeof(uint32_t), curHashSetSize, fp_result);
+					out_genomeNameSize[solved_num] = curNameLength;
+					out_hashSetSize[solved_num] = curHashSetSize;
 					solved_num++;
-					//cerr << "DEBUG: solved_num is: " << solved_num << endl;
 				}
 				omp_unset_lock(&vector_lock);
 			}
 		}
 	}
 
+	rewind(fp_result);
+	fwrite(&query_info, sizeof(sketchInfo_t), 1, fp_result);
+	fwrite(out_genomeNameSize, sizeof(int), query_num, fp_result);
+	fwrite(out_hashSetSize, sizeof(int), query_num, fp_result);
+
 	#ifdef Timer_inner
 	double t3 = get_sec();
 	cerr << "-----time of substraction is: " << t3 - t2 << endl;
 	#endif
 
-	saveSketches(subSketches, info, outputFile);
+	//saveSketches(subSketches, info, outputFile);
 
 	#ifdef Timer_inner
 	double t4 = get_sec();

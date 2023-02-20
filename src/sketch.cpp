@@ -772,7 +772,7 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFil
 }
 
 
-void saveSketches(vector<sketch_t> sketches, sketchInfo_t info, string outputFile){
+void saveSketches(vector<sketch_t>& sketches, sketchInfo_t info, string outputFile){
 
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	int sketchNumber = sketches.size();
