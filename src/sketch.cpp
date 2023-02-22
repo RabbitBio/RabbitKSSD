@@ -724,32 +724,31 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFil
 	double t0 = get_sec();
 	int half_k = info.half_k;
 	int drlevel = info.drlevel;
-	size_t hashSize = 1 << (4 * (half_k - drlevel));
-	vector<vector<int>> hashMapId;
-	for(int i = 0; i < hashSize; i++){
-		hashMapId.push_back(vector<int>());
+	size_t hashSize = 1LLU << (4 * (half_k - drlevel));
+	vector<vector<uint32_t>> hashMapId;
+	for(size_t i = 0; i < hashSize; i++){
+		hashMapId.push_back(vector<uint32_t>());
 	}
-	int * offsetArr = (int*)calloc(hashSize, sizeof(int));
+	uint32_t* offsetArr = (uint32_t*)calloc(hashSize, sizeof(uint32_t));
 
-	//cerr << "the hashSize is: " << hashSize << endl;
-	//cerr << "start the hashMapId " << endl;
-	cerr << "the thread number is: " << numThreads << endl;
+	cerr << "the hashSize is: " << hashSize << endl;
 	for(int i = 0; i < sketches.size(); i++){
 		#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-		for(int j = 0; j < sketches[i].hashSet.size(); j++){
-			int hash = sketches[i].hashSet[j];
+		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
+			uint32_t hash = sketches[i].hashSet[j];
 			hashMapId[hash].push_back(i);
 		}
 	}
-	cerr << "finish the hashMapId " << endl;
 	double tt0 = get_sec();
+	#ifdef Timer_inner
 	cerr << "the time of generate the idx by multiple threads are: " << tt0 - t0 << endl;
+	#endif
 
 	FILE * fp0 = fopen(dictFile.c_str(), "w+");
 	uint64_t totalIndex = 0;
 	for(int hash = 0; hash < hashSize; hash++){
 		if(hashMapId[hash].size() != 0){
-			fwrite(hashMapId[hash].data(), sizeof(int), hashMapId[hash].size(), fp0);
+			fwrite(hashMapId[hash].data(), sizeof(uint32_t), hashMapId[hash].size(), fp0);
 			totalIndex += hashMapId[hash].size();
 			offsetArr[hash] = hashMapId[hash].size();
 		}
@@ -757,15 +756,19 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFil
 	fclose(fp0);
 	
 	double t1 = get_sec();
+	#ifdef Timer_inner
 	cerr << "the time of merge multiple idx into final hashMap is: " << t1 - tt0 << endl;
+	#endif
 
 	FILE * fp1 = fopen(indexFile.c_str(), "w+");
 	fwrite(&hashSize, sizeof(size_t), 1, fp1);
 	fwrite(&totalIndex, sizeof(uint64_t), 1, fp1);
-	fwrite(offsetArr, sizeof(int), hashSize, fp1);
+	fwrite(offsetArr, sizeof(uint32_t), hashSize, fp1);
 	double t2 = get_sec();
 	fclose(fp1);
+	#ifdef Timer_inner
 	cerr << "the time of write output file is: " << t2 - t1 << endl;
+	#endif
 	//cerr << "the hashSize is: " << hashSize << endl;
 	//cerr << "the totalIndex is: " << totalIndex << endl;
 
@@ -809,6 +812,10 @@ void saveSketches(vector<sketch_t>& sketches, sketchInfo_t info, string outputFi
 
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile){
 	FILE * fp = fopen(inputFile.c_str(), "rb+");
+	if(!fp){
+		fprintf(stderr, "ERROR: readSketches(), cannot open the file: %s\n", inputFile.c_str());
+		exit(1);
+	}
 	fread(&info, sizeof(sketchInfo_t), 1, fp);
 	int sketchNumber = info.genomeNumber;
 	//fread(&sketchNumber, sizeof(int), 1, fp);

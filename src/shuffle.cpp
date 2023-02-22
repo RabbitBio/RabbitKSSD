@@ -3,8 +3,10 @@
 #include <err.h>
 
 
-int * read_shuffle_dim(string shuffle_file){
-	int * shuffled_dim;
+
+
+dim_shuffle_t* read_shuffle_dim(string shuffle_file){
+	//int * shuffled_dim;
 	FILE * shuf_in = fopen(shuffle_file.c_str(), "rb");
 	if(shuf_in == NULL){
 		err(errno, "cannot read shuffle file: %s\n", shuffle_file.c_str());
@@ -12,25 +14,64 @@ int * read_shuffle_dim(string shuffle_file){
 	dim_shuffle_t * dim_shuffle = (dim_shuffle_t *)malloc(sizeof(dim_shuffle_t));
 	fread(&(dim_shuffle->dim_shuffle_stat), sizeof(dim_shuffle_stat_t), 1, shuf_in);
 	int dim_size = 1 << 4* dim_shuffle->dim_shuffle_stat.subk;
-	shuffled_dim = (int*) malloc(sizeof(int) * dim_size);
-	fread(shuffled_dim, sizeof(int) * dim_size, 1, shuf_in);
-	fprintf(stderr, "read from %s\n", shuffle_file.c_str());
+	dim_shuffle->shuffled_dim= (int*) malloc(sizeof(int) * dim_size);
+	fread(dim_shuffle->shuffled_dim, sizeof(int) * dim_size, 1, shuf_in);
+	//fprintf(stderr, "read from %s\n", shuffle_file.c_str());
 	//fprintf(stderr, "\tthe half_k is: %d\n", dim_shuffle->dim_shuffle_stat.k);
-	fprintf(stderr, "\tthe half_subk is: %d\n", dim_shuffle->dim_shuffle_stat.subk);
+	//fprintf(stderr, "\tthe half_subk is: %d\n", dim_shuffle->dim_shuffle_stat.subk);
 	//fprintf(stderr, "\tthe drlevel is: %d\n", dim_shuffle->dim_shuffle_stat.drlevel);
 
 	//printf("print the shuffle_dim : \n");
 	//for(int i = 0; i < dim_size; i++)
 	//	printf("%lx\n", shuffled_dim[i]);
 	//exit(0);
+	//return shuffled_dim;
+	
+	return dim_shuffle;
+}
 
-	return shuffled_dim;
+int write_shuffle_dim_file(dim_shuffle_stat_t* stat, string shuffle_file){
+	if(stat->k < stat->subk){
+		fprintf(stderr, "ERROR: write_shuffle_dim_file(), half_k %d should be larger than sub_k %d\n", stat->k, stat->subk);
+		exit(1);
+	}
+	if(stat->subk >= 8){
+		fprintf(stderr, "ERROR: write_shuffle_dim_file(), subk %d should be smaller than 8\n", stat->subk);
+		exit(1);
+	}
+	int dim_after_reduction = 1 << (4 * (stat->subk - stat->drlevel));
+	if(dim_after_reduction < MIN_SUBCTX_DIM_SMP_SZ){
+		fprintf(stderr, "Warning: write_shuffle_dim_file(), dimension after reduction %d is smaller than the suggested minimal, which might cause loss of robustness, -s %d is suggested", dim_after_reduction, stat->drlevel+3);
+	}
+
+	FILE* fp_out = fopen(shuffle_file.c_str(), "wb+");
+	if(!fp_out){
+		fprintf(stderr, "ERROR: write_shuffle_dim_file(), error open shuffle file %s\n", shuffle_file.c_str());
+		exit(1);
+	}
+	int id = 0;
+	id += stat->k;
+	id = id << 4;
+	id += stat->subk;
+	id = id << 4;
+	id += stat->drlevel;
+	stat->id = id;
+	//cerr << "the stat->id is: " << stat->id << endl;
+	//stat->id = 348842630;
+	int* shuffled_dim = shuffleN(1 << 4*stat->subk, 0);
+	shuffled_dim = shuffle(shuffled_dim, 1 << 4*stat->subk, stat->id);
+	int ret = fwrite(stat, sizeof(dim_shuffle_stat_t), 1, fp_out);
+	ret += fwrite(shuffled_dim, sizeof(int), 1 << 4*stat->subk, fp_out);
+	fclose(fp_out);
+	free(shuffled_dim);
+
+	return ret;
 }
 
 int * generate_shuffle_dim(int half_subk){
 	int dim_size = 1 << 4 * half_subk;
 	int * shuffled_dim = shuffleN(dim_size, 0);
-	shuffled_dim = shuffle(shuffled_dim, dim_size);
+	shuffled_dim = shuffle(shuffled_dim, dim_size, 348842630);
 
 	//printf("print the shuffle_dim : \n");
 	//for(int i = 0; i < dim_size; i++)
@@ -48,16 +89,16 @@ int * shuffleN(int n, int base)
 		arr[i] = i + base;
 	}
 	
-	return shuffle(arr, n);
+	return shuffle(arr, n, 23);
 }
 
-int * shuffle(int arr[], int length)
+int * shuffle(int arr[], int length, uint64_t seed)
 {
 	if(length > RAND_MAX){
 		err(errno, "shuffling array length %d must be less than RAND_MAX: %d", length, RAND_MAX);
 	}
 	//srand(time(NULL));
-	srand(23);
+	srand(seed);
 	int j, tmp;
 	for(int i = length-1; i > 0; i--)
 	{

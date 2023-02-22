@@ -33,6 +33,7 @@ int main(int argc, char * argv[]){
 
 	CLI::App app{"kssd: k-mer substring space sampling for analyzing large-scale genome databases"};
 	app.require_subcommand(1);
+	CLI::App * shuffle = app.add_subcommand("shuffle", "generate the shuffle file for sketching usage");
 	CLI::App * sketch = app.add_subcommand("sketch", "computing sketches for the input genome list");
 	CLI::App * info = app.add_subcommand("info", "get the information of the sketches");
 	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
@@ -49,7 +50,7 @@ int main(int argc, char * argv[]){
 	int half_subk = 6;
 	int drlevel = 3;
 	int threads = get_nprocs_conf();
-	string shuf_file = "shuf_file/bact.shuf";
+	string shuf_file = "shuf_file/L3K10.shuf";
 	string outputFile = "result.out";
 	int isContainment = 0;
 	bool isQuery = false;
@@ -58,18 +59,19 @@ int main(int argc, char * argv[]){
 	int maxNeighbor = 1;
 	int leastNumKmer = 1;
 
+	auto shuffle_option_k = shuffle->add_option("-k, --halfk", half_k, "the half length of kmer size");
+	auto shuffle_option_s = shuffle->add_option("-s, --subk", half_subk, "the half length of substring space");
+	auto shuffle_option_l = shuffle->add_option("-l, --reduction", drlevel, "the dimention reduction level");
+	auto shuffle_option_o = shuffle->add_option("-o, --output", outputFile, "set the output shuffle file");
+
+
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
-	auto sketch_option_k = sketch->add_option("-k, --halfk", half_k, "the half length of kmer size");
-	auto sketch_option_s = sketch->add_option("-s, --subk", half_subk, "the half length of substring space");
-	auto sketch_option_l = sketch->add_option("-l, --reduction", drlevel, "the dimention reduction level");
 	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
 	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
 	auto sketch_option_n = sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
-	sketch_option_k->excludes(sketch_option_L);
-	sketch_option_s->excludes(sketch_option_L);
-	sketch_option_l->excludes(sketch_option_L);
+	//sketch_option_L->required();
 	sketch_option_i->required();
 	sketch_option_o->required();
 
@@ -87,36 +89,24 @@ int main(int argc, char * argv[]){
 	
 	auto alldist_option_i = alldist->add_option("-i, --input", refList, "list of input genome path, one genome per line");
 	auto alldist_option_D = alldist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto alldist_option_k = alldist->add_option("-k, --halfk", half_k, "the half length of kmer size");
-	auto alldist_option_s = alldist->add_option("-s, --subk", half_subk, "the half length of substring space");
-	auto alldist_option_l = alldist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
 	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
 	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
 	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto alldist_option_n = alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
-	alldist_option_k->excludes(alldist_option_L);
-	alldist_option_s->excludes(alldist_option_L);
-	alldist_option_l->excludes(alldist_option_L);
 	alldist_option_i->required();
 	alldist_option_o->required();
 
 	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path, one genome per line");
 	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path, one genome per line");
 	auto dist_option_D = dist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto dist_option_k = dist->add_option("-k, --halfk", half_k, "the half length of kmer size");
-	auto dist_option_s = dist->add_option("-s, --subk", half_subk, "the half length of substring space");
-	auto dist_option_l = dist->add_option("-l, --reduction", drlevel, "the dimention reduction level");
 	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
 	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
 	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	auto dist_option_n = dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
-	dist_option_k->excludes(dist_option_L);
-	dist_option_s->excludes(dist_option_L);
-	dist_option_l->excludes(dist_option_L);
 	dist_option_r->required();
 	dist_option_q->required();
 	dist_option_o->required();
@@ -153,7 +143,17 @@ int main(int argc, char * argv[]){
 
 	CLI11_PARSE(app, argc, argv);
 
-	if(app.got_subcommand(info)){
+
+	if(app.got_subcommand(shuffle)){
+		cerr << "-----generate the shuffle file: " << outputFile << endl;
+		dim_shuffle_stat_t shuffle_stat;
+		shuffle_stat.k = half_k;
+		shuffle_stat.subk = half_subk;
+		shuffle_stat.drlevel = drlevel;
+		write_shuffle_dim_file(&shuffle_stat, outputFile);
+		return 0;
+	}
+	else if(app.got_subcommand(info)){
 		cerr << "-----run the subcommand: info" << endl;
 		command_info(sketchFile, isDetail, outputFile);
 		return 0;
@@ -183,24 +183,7 @@ int main(int argc, char * argv[]){
 
 	double t1 = get_sec();
 	//cerr << "===================time of init parameters is: " << t1 - t0 << endl;
-
-	int kmer_size = 2 * half_k;
-	int * shuffled_dim;
 	
-	//if(*sketch_option_L || *alldist_option_L || *dist_option_L){
-	//	cerr << "---read the shuffle file: " << shuf_file << endl;
-	//	shuffled_dim = read_shuffle_dim(shuf_file);
-	//}
-	//else{
-	//	cerr << "---generate the shuffle file: " << endl;
-	//	shuffled_dim = generate_shuffle_dim(half_subk);
-	//}
-
-	//kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
-
-	//double t2 = get_sec();
-	//cerr << "===================time of read shuffle file is: " << t2 - t1 << endl;
-
 	if(app.got_subcommand(sketch)){
 		cerr << "-----run the subcommand: sketch" << endl;
 		if(isSketchFile(refList)){
@@ -208,7 +191,8 @@ int main(int argc, char * argv[]){
 				vector<sketch_t> sketches;
 				sketchInfo_t info;
 				readSketches(sketches, info, refList);
-				string cmd0 = "cp " + refList + ' ' + outputFile;
+				cerr << "input is a sketch file, rename the sketch file from: " << refList << " to: " << outputFile << endl;
+				string cmd0 = "mv " + refList + ' ' + outputFile;
 				system(cmd0.c_str());
 				//saveSketches(sketches, info, outputFile);
 				double tstart = get_sec();
@@ -219,19 +203,20 @@ int main(int argc, char * argv[]){
 				cerr << "===============the time of transSketches is: " << tend - tstart << endl;
 			}
 			else{
-				cerr << "input is a sketch file, do nothing" << endl;
+				//cerr << "input is a sketch file, do nothing" << endl;
+				cerr << "input is a sketch file, rename the sketch file from: " << refList << " to: " << outputFile << endl;
+				string cmd0 = "mv " + refList + ' ' + outputFile;
+				system(cmd0.c_str());
 			}
 			return 0;
 		}
-		if(*sketch_option_L){
-			cerr << "---read the shuffle file: " << shuf_file << endl;
-			shuffled_dim = read_shuffle_dim(shuf_file);
-		}
-		else{
-			cerr << "---generate the shuffle file: " << endl;
-			shuffled_dim = generate_shuffle_dim(half_subk);
-		}
-		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+
+		cerr << "---read the shuffle file: " << shuf_file << endl;
+		dim_shuffle_t* shuffled_info = read_shuffle_dim(shuf_file);
+		half_k = shuffled_info->dim_shuffle_stat.k;
+		half_subk = shuffled_info->dim_shuffle_stat.subk;
+		drlevel = shuffled_info->dim_shuffle_stat.drlevel;
+		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 
 		command_sketch(refList, isQuery, outputFile, kssd_parameter, leastNumKmer, threads);
 		return 0;
@@ -240,37 +225,29 @@ int main(int argc, char * argv[]){
 		cerr << "-----run the subcommand: alldist" << endl;
 		kssd_parameter_t kssd_parameter;
 		if(!isSketchFile(refList)){
-			if(*alldist_option_L){
-				cerr << "---read the shuffle file: " << shuf_file << endl;
-				shuffled_dim = read_shuffle_dim(shuf_file);
-			}
-			else{
-				cerr << "---generate the shuffle file: " << endl;
-				shuffled_dim = generate_shuffle_dim(half_subk);
-			}
-			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+			dim_shuffle_t* shuffled_info = read_shuffle_dim(shuf_file);
+			half_k = shuffled_info->dim_shuffle_stat.k;
+			half_subk = shuffled_info->dim_shuffle_stat.subk;
+			drlevel = shuffled_info->dim_shuffle_stat.drlevel;
+			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 		}
-		command_alldist(refList, outputFile, kssd_parameter, kmer_size, leastNumKmer, maxDist, isContainment, threads);
+		command_alldist(refList, outputFile, kssd_parameter, leastNumKmer, maxDist, isContainment, threads);
 	}
 	else if(app.got_subcommand(dist)){
 		cerr << "-----run the subcommand: dist" << endl;
 		kssd_parameter_t kssd_parameter;
 		if(!isSketchFile(refList) || !isSketchFile(queryList)){
-			if(*dist_option_L){
-				cerr << "---read the shuffle file: " << shuf_file << endl;
-				shuffled_dim = read_shuffle_dim(shuf_file);
-			}
-			else{
-				cerr << "---generate the shuffle file: " << endl;
-				shuffled_dim = generate_shuffle_dim(half_subk);
-			}
-			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_dim);
+			dim_shuffle_t* shuffled_info = read_shuffle_dim(shuf_file);
+			half_k = shuffled_info->dim_shuffle_stat.k;
+			half_subk = shuffled_info->dim_shuffle_stat.subk;
+			drlevel = shuffled_info->dim_shuffle_stat.drlevel;
+			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 		}
 		bool isNeighbor = false;
 		if(*dist_option_N){
 			isNeighbor = true;
 		}
-		command_dist(refList, queryList, outputFile, kssd_parameter, kmer_size, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
+		command_dist(refList, queryList, outputFile, kssd_parameter, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 	}
 	
 	return 0;

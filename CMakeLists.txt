@@ -41,10 +41,10 @@ include_directories(src RabbitFX/build/include)
 link_directories(RabbitFX/build/lib)
 
 aux_source_directory(src DIR_SRCS)
-add_executable(kssd ${DIR_SRCS})
-target_link_libraries(kssd rabbitfx z)
+add_executable(rabbit_kssd ${DIR_SRCS})
+target_link_libraries(rabbit_kssd rabbitfx z)
 
-install(TARGETS kssd DESTINATION ./)
+install(TARGETS rabbit_kssd DESTINATION ./)
 
 
 

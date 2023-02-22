@@ -20,8 +20,6 @@ setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
 void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outputFile, int kmer_size, double maxDist, int isContainment, int numThreads){
 
-
-	cerr << "start index_tridist" << endl;
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -63,8 +61,6 @@ void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outpu
 		exit(1);
 	}
 	fread(indexArr, sizeof(int), totalHashNumber, fp1);
-
-	cerr << "after the read index and dict file" << endl;
 
 	#ifdef Timer
 	double t1 = get_sec();
@@ -108,7 +104,7 @@ void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outpu
 		fprintf(fpIndexArr[tid], "%s\t%s\n", sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef * sizeof(int));
 		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
-			int hash = sketches[i].hashSet[j];
+			uint32_t hash = sketches[i].hashSet[j];
 			if(sketchSizeArr[hash] == 0) continue;
 			size_t start = hash > 0 ? offset[hash-1] : 0;
 			size_t end = offset[hash];
@@ -399,7 +395,7 @@ void index_dist(vector<sketch_t>& ref_sketches, string refSketchOut, vector<sket
 		fprintf(fpIndexArr[tid], "%s\t%s\n", query_sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef *sizeof(int));
 		for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
-			int hash = query_sketches[i].hashSet[j];
+			uint32_t hash = query_sketches[i].hashSet[j];
 			if(refSketchSizeArr[hash] == 0) continue;
 			size_t start = hash > 0 ? refOffset[hash-1] : 0;
 			size_t end = refOffset[hash];

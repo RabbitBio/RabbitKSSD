@@ -124,15 +124,17 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	//	printInfos(sketches, outputFile);
 }
 
-void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, int leastNumKmer, double maxDist, int isContainment, int threads){
+void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, double maxDist, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3;
+	int kmer_size = kssd_parameter.half_k * 2;
 	string refSketchOut;
 	vector<sketch_t> sketches;
 	sketchInfo_t info;
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
 		readSketches(sketches, info, refList);
+		kmer_size = info.half_k * 2;
 		string indexFile = refSketchOut + ".index";
 		string dictFile = refSketchOut + ".dict";
 		if(!existFile(indexFile) || !existFile(dictFile)){
@@ -167,15 +169,17 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 }
 
 
-void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int kmer_size, int leastNumKmer, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
+void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3, t4;
+	int kmer_size = kssd_parameter.half_k * 2;
 	string refSketchOut, querySketchOut;
 	vector<sketch_t> ref_sketches;
 	sketchInfo_t info;
 	if(isSketchFile(refList)){
 		refSketchOut = refList;
 		readSketches(ref_sketches, info, refList);
+		kmer_size = info.half_k * 2;
 		string indexFile = refSketchOut + ".index";
 		string dictFile = refSketchOut + ".dict";
 		if(!existFile(indexFile) || !existFile(dictFile)){
