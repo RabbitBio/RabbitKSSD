@@ -31,17 +31,17 @@ int main(int argc, char * argv[]){
 	
 	double t0 = get_sec();
 
-	CLI::App app{"kssd: k-mer substring space sampling for analyzing large-scale genome databases"};
+	CLI::App app{"rabbit_kssd: accelerating Kssd-based genome distance estimation on modern multi-core architectures"};
 	app.require_subcommand(1);
 	CLI::App * shuffle = app.add_subcommand("shuffle", "generate the shuffle file for sketching usage");
-	CLI::App * sketch = app.add_subcommand("sketch", "computing sketches for the input genome list");
-	CLI::App * info = app.add_subcommand("info", "get the information of the sketches");
-	CLI::App * alldist = app.add_subcommand("alldist", "computing all to all distances for the input genome list");
-	CLI::App * dist = app.add_subcommand("dist", "computing the distances between reference genomes and query datasets");
-	CLI::App * setUnion = app.add_subcommand("union", "computing the set union from multiple sketches");
-	CLI::App * sub = app.add_subcommand("sub", "subtracting the specific sketch from the query sketches");
-	CLI::App * convert = app.add_subcommand("convert", "converting the sketches from Kssd format to RabbitKSSD format");
-	CLI::App * merge = app.add_subcommand("merge", "merge multiple sketch files into one output sketch file");
+	CLI::App * sketch = app.add_subcommand("sketch", "compute sketches for the input genome list");//TODO: only support input list
+	CLI::App * info = app.add_subcommand("info", "get the information of the sketch file");
+	CLI::App * alldist = app.add_subcommand("alldist", "compute all-vs-all distances for one input dataset");
+	CLI::App * dist = app.add_subcommand("dist", "compute the all-vs-all distances between reference genomes and query datasets");
+	CLI::App * setUnion = app.add_subcommand("union", "compute the set union from multiple sketches");
+	CLI::App * sub = app.add_subcommand("sub", "subtract the reference sketch from the query sketches");
+	CLI::App * convert = app.add_subcommand("convert", "convert the sketches between Kssd format and RabbitKSSD format");
+	CLI::App * merge = app.add_subcommand("merge", "merge multiple sketch files into one single sketch file");
 
 	string refList = "default";
 	string queryList = "default";
@@ -65,10 +65,10 @@ int main(int argc, char * argv[]){
 	auto shuffle_option_o = shuffle->add_option("-o, --output", outputFile, "set the output shuffle file");
 
 
-	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");
+	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");//TODO: only support input list
 	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
-	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto sketch_option_n = sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	//sketch_option_L->required();
@@ -77,9 +77,9 @@ int main(int argc, char * argv[]){
 
 
 	bool to_Kssd_sketch = false;
-	auto convert_option_i = convert->add_option("-i, --input", inputDir, "input Kssd sketches directory, including cofiles.stat, combco.index.0, combco.0");
-	auto convert_option_o = convert->add_option("-o, --output", outputFile, "output sketches file in RabbitKSSD format");
-	auto convert_option_t = convert->add_option("-t, --threads", threads, "set the thread number, default all cpus of the platform");
+	auto convert_option_i = convert->add_option("-i, --input", inputDir, "input Kssd sketches directory(including cofiles.stat, combco.index.0, combco.0) or RabbitKSSD sketches(with --reverse option)");
+	auto convert_option_o = convert->add_option("-o, --output", outputFile, "output sketches file in RabbitKSSD format (in Kssd format with --reverse option)");
+	auto convert_option_t = convert->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto convert_flag_q = convert->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	auto convert_flag_reverse = convert->add_flag("--reverse", to_Kssd_sketch, "convert sketch file from RabbitKSSD format to Kssd format");
 	convert_option_i->required();
@@ -87,23 +87,23 @@ int main(int argc, char * argv[]){
 
 
 	
-	auto alldist_option_i = alldist->add_option("-i, --input", refList, "list of input genome path, one genome per line");
+	auto alldist_option_i = alldist->add_option("-i, --input", refList, "input list of genome path or one sketch file(*.sketch format)");
 	auto alldist_option_D = alldist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
-	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number");
+	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto alldist_option_n = alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
 	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	alldist_option_i->required();
 	alldist_option_o->required();
 
-	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path, one genome per line");
-	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path, one genome per line");
+	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path or a reference sketch file(*.sketch format)");
+	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path or a query sketch file (*.sketch format)");
 	auto dist_option_D = dist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
 	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
-	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number");
+	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	auto dist_option_n = dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
@@ -112,30 +112,30 @@ int main(int argc, char * argv[]){
 	dist_option_o->required();
 
 	string sketchFile = "default";
-	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation");
-	auto info_option_o = info->add_option("-o, --output", outputFile, "the genome name and hash values in each sketch");
+	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation (*.sketch format)");
+	auto info_option_o = info->add_option("-o, --output", outputFile, "set output file");
 	auto info_flag_F = info->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
 	info_option_i->required();
 	info_option_o->required();
 
-	auto union_option_i = setUnion->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches, which is saved from the distance computing");
-	auto union_option_o = setUnion->add_option("-o, --output", outputFile, "result file for union hash values");
-	auto union_option_t = setUnion->add_option("-t, --threads", threads, "set the thread number");
+	auto union_option_i = setUnion->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches (*.sketch format)");
+	auto union_option_o = setUnion->add_option("-o, --output", outputFile, "result file for union hash values (*.sketch format)");
+	auto union_option_t = setUnion->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	union_option_i->required();
 	union_option_o->required();
 
-	auto merge_option_i = merge->add_option("-i, --input", refList, "list file of sketch files for merging, one file per line");
-	auto merge_option_o = merge->add_option("-o, --output", outputFile, "result sketch file after merging");
-	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number");
+	auto merge_option_i = merge->add_option("-i, --input", refList, "list of multiple sketch files list, one file per line");
+	auto merge_option_o = merge->add_option("-o, --output", outputFile, "one single sketch file after merging (*.sketch format)");
+	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	merge_option_i->required();
 	merge_option_o->required();
 
 	string refSketchFile = "default";	
 	string querySketchFile = "default";	
-	auto sub_option_r = sub->add_option("--rs", refSketchFile, "the union sketches for reference sketches, which need to be subtracted from the query sketches");
-	auto sub_option_q = sub->add_option("--qs", querySketchFile, "the query sketches file");
-	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result file for unioned hash values");
-	auto sub_option_t = sub->add_option("-t, --threads", threads, "set the thread number");
+	auto sub_option_r = sub->add_option("--rs", refSketchFile, "reference sketch file (*.sketch format) to be subtracted from the query sketches");
+	auto sub_option_q = sub->add_option("--qs", querySketchFile, "the query sketches file, (*.sketch format)");
+	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result sketch file (*.sketch format) after substraction");
+	auto sub_option_t = sub->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	sub_option_r->required();
 	sub_option_q->required();
 	sub_option_o->required();
@@ -232,6 +232,7 @@ int main(int argc, char * argv[]){
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 		}
 		command_alldist(refList, outputFile, kssd_parameter, leastNumKmer, maxDist, isContainment, threads);
+		return 0;
 	}
 	else if(app.got_subcommand(dist)){
 		cerr << "-----run the subcommand: dist" << endl;
@@ -248,6 +249,7 @@ int main(int argc, char * argv[]){
 			isNeighbor = true;
 		}
 		command_dist(refList, queryList, outputFile, kssd_parameter, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
+		return 0;
 	}
 	
 	return 0;

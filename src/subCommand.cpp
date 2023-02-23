@@ -55,10 +55,10 @@ void command_sketch(string refList, bool isQuery, string outputFile, kssd_parame
 	//bool success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
 	bool success;
 	if(isFastaList(refList)){
-		success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
+		success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, info, outputFile);
 	}
 	else if(isFastqList(refList)){
-		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastNumKmer, sketches, outputFile);
+		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastNumKmer, sketches, info, outputFile);
 	}
 	else{
 		cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -70,7 +70,11 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	//vector<sketch_t> sketches;
 	sketchInfo_t info;
 	//readSketches(sketches, info, sketchFile);
-	FILE * fp = fopen(sketchFile.c_str(), "rb+");
+	FILE * fp = fopen(sketchFile.c_str(), "rb");
+	if(!fp){
+		fprintf(stderr, "ERROR: command_info(), cannot open file: %s\n", sketchFile.c_str());
+		exit(1);
+	}
 	fread(&info, sizeof(sketchInfo_t), 1, fp);
 	int sketchNumber = info.genomeNumber;
 	cerr << "the number of genome is: " << sketchNumber << endl;
@@ -78,6 +82,7 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	int * hashSetSize = new int[sketchNumber];
 	fread(genomeNameSize, sizeof(int), sketchNumber, fp);
 	fread(hashSetSize, sizeof(int), sketchNumber, fp);
+
 	FILE * fp1 = fopen(outputFile.c_str(), "w+");
 	fprintf(fp1, "the number of sketches are: %d\n", sketchNumber);
 	int maxNameLength=1000;
@@ -93,19 +98,20 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 		//char * curName = new char[curLength+1];
 		int nameLength = fread(curName, sizeof(char), curLength, fp);
 		if(nameLength != curLength){
-			cerr << "error: the read nameLength is not equal to the saved nameLength, exit!" << endl;
-			exit(0);
+			cerr << "ERROR: command_info, the read nameLength is not equal to the saved nameLength, exit!" << endl;
+			exit(1);
 		}
-		fprintf(fp1, "%s\t%d\n", curName, hashSetSize[i]);
+		string genomeName;
+		genomeName.assign(curName, curName + curLength);
+		fprintf(fp1, "%s\t%d\n", genomeName.c_str(), hashSetSize[i]);
 		int curSize = hashSetSize[i];
 		if(curSize > maxHashSize){
 			maxHashSize = curSize;
 			curPoint = new uint32_t[maxHashSize];
 		}
-		//uint32_t * curPoint = new uint32_t[curSize];
 		int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
 		if(hashSize != curSize){
-			cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+			cerr << "ERROR: command_info, the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
 			exit(0);
 		}
 		if(isDetail){
@@ -147,10 +153,10 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 		refSketchOut = refList + ".sketch";
 		bool success;
 		if(isFastaList(refList)){
-			success = sketchFastaFile(refList, false, threads, kssd_parameter, sketches, refSketchOut);
+			success = sketchFastaFile(refList, false, threads, kssd_parameter, sketches, info, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, sketches, refSketchOut);
+			success = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, sketches, info, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -174,28 +180,35 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	double t3, t4;
 	int kmer_size = kssd_parameter.half_k * 2;
 	string refSketchOut, querySketchOut;
+
 	vector<sketch_t> ref_sketches;
-	sketchInfo_t info;
-	if(isSketchFile(refList)){
+	sketchInfo_t ref_info;
+	if(isSketchFile(refList))
+	{
 		refSketchOut = refList;
-		readSketches(ref_sketches, info, refList);
-		kmer_size = info.half_k * 2;
+		readSketches(ref_sketches, ref_info, refList);
+
+		kmer_size = ref_info.half_k * 2;
 		string indexFile = refSketchOut + ".index";
 		string dictFile = refSketchOut + ".dict";
 		if(!existFile(indexFile) || !existFile(dictFile)){
-			transSketches(ref_sketches, info, dictFile, indexFile, threads);
+			transSketches(ref_sketches, ref_info, dictFile, indexFile, threads);
 		}
+		cerr << "the ref_sketch size is: " << ref_sketches.size() << endl;
 		t3 = get_sec();
+		#ifdef Timer
 		cerr << "===================time of read reference sketches from " << refList << " is: " << t3 - t2 << endl;
+		#endif
 	}
-	else{
+	else
+	{
 		refSketchOut = refList + ".sketch";
 		bool success0;
 		if(isFastaList(refList)){
-			success0 = sketchFastaFile(refList, false, threads, kssd_parameter, ref_sketches, refSketchOut);
+			success0 = sketchFastaFile(refList, false, threads, kssd_parameter, ref_sketches, ref_info, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success0 = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, ref_sketches, refSketchOut);
+			success0 = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, ref_sketches, ref_info, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -204,25 +217,30 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 
 
 		t3 = get_sec();
+		#ifdef Timer
 		cerr << "===================time of computing reference sketches and save sketches into " << refSketchOut << " is: " << t3 - t2 << endl;
+		#endif
 	}
-	//cerr << "the size of ref_sketches is: " << ref_sketches.size() << endl;
 
 	vector<sketch_t> query_sketches;
-	if(isSketchFile(queryList)){
+	sketchInfo_t query_info;
+	if(isSketchFile(queryList))
+	{
 		querySketchOut = queryList;
-		readSketches(query_sketches, info, queryList);
+		readSketches(query_sketches, query_info, queryList);
 		t4 = get_sec();
+		#ifdef Timer
 		cerr << "===================time of read query sketches from " << queryList << " is: " << t4 - t3 << endl;
+		#endif
 	}
 	else{
 		querySketchOut = queryList + ".sketch";
 		bool success1;
 		if(isFastaList(queryList)){
-			success1 = sketchFastaFile(queryList, true, threads, kssd_parameter, query_sketches, querySketchOut);
+			success1 = sketchFastaFile(queryList, true, threads, kssd_parameter, query_sketches, query_info, querySketchOut);
 		}
 		else if(isFastqList(queryList)){
-			success1 = sketchFastqFile(queryList, true, threads, kssd_parameter, leastNumKmer, query_sketches, querySketchOut);
+			success1 = sketchFastqFile(queryList, true, threads, kssd_parameter, leastNumKmer, query_sketches, query_info, querySketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -230,22 +248,28 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 		}
 		
 		t4 = get_sec();
+		#ifdef Timer
 		cerr << "===================time of computing query sketches and save sketches into " << querySketchOut << " is: " << t4 - t3 << endl;
+		#endif
 	}
-	//cerr << "the size of query_sketches is: " << query_sketches.size() << endl;
+	if(query_info.id != ref_info.id){
+		fprintf(stderr, "ERROR: command_dist(), the sketch infos between reference and query files are not match\n");
+		fprintf(stderr, "try to use the same shuffle file to generate sketches of the reference and query datasets\n");
+		exit(1);
+	}
 
 	//dist(ref_sketches, query_sketches, outputFile, kmer_size, maxDist, threads);
 	index_dist(ref_sketches, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
-
-	//double t5 = get_sec();
-	//cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
+	#ifdef Timer
+	double t5 = get_sec(); //cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
+	#endif
 }
 
 void command_union(string sketchFile, string outputFile, int threads){
 	
 	vector<sketch_t> sketches;
 	if(!isSketchFile(sketchFile)){
-		err(errno, "error: %s is not sketch file, need input sketch file\n", sketchFile.c_str());
+		err(errno, "ERROR: command_union, %s is not sketch file, need input sketch file\n", sketchFile.c_str());
 	}
 	#ifdef Timer_inner
 	double t0 = get_sec();
@@ -316,7 +340,7 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 	#endif
 	vector<sketch_t> refSketches;
 	if(!isSketchFile(refSketchFile)){
-		err(errno, "error: %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
+		err(errno, "ERROR: new_command_sub, %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
 	}
 	sketchInfo_t info;
 	readSketches(refSketches, info, refSketchFile);
@@ -343,16 +367,20 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 
 	vector<sketch_t> querySketches;
 	if(!isSketchFile(querySketchFile)){
-		err(errno, "error: %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
+		err(errno, "ERROR: new_command_sub(): %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
 	}
 	//readSketches(querySketches, info, querySketchFile);
 	sketchInfo_t query_info;
 	FILE* fp_query = fopen(querySketchFile.c_str(), "rb");
 	if(!fp_query){
-		cerr << "error open the file: " << querySketchFile << endl;
+		fprintf(stderr, "ERROR: new_command_sub(): cannot open the file: %s\n", querySketchFile.c_str());
 		exit(1);
 	}
 	fread(&query_info, sizeof(sketchInfo_t), 1, fp_query);
+	if(query_info.id != info.id){
+		fprintf(stderr, "ERROR: new_command_sub(): the sketch infos between subtraction reference and query sketches are not same\n");
+		exit(1);
+	}
 	int query_num = query_info.genomeNumber;
 	int * genomeNameSize = new int[query_num];
 	int * hashSetSize = new int[query_num];
@@ -366,7 +394,7 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 
 	FILE* fp_result = fopen(outputFile.c_str(), "w+");
 	if(!fp_result){
-		cerr << "error open the output file: " << outputFile << endl;
+		fprintf(stderr, "ERROR: new_command_sub(): cannot open the file: %s\n", outputFile.c_str());
 		exit(1);
 	}
 	int * out_genomeNameSize = new int [query_num];
@@ -500,7 +528,7 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	#endif
 	vector<sketch_t> refSketches;
 	if(!isSketchFile(refSketchFile)){
-		err(errno, "error: %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
+		err(errno, "ERROR: command_sub, %s is not sketch file, need input sketch file\n", refSketchFile.c_str());
 	}
 	sketchInfo_t info;
 	readSketches(refSketches, info, refSketchFile);
@@ -511,7 +539,7 @@ void command_sub(string refSketchFile, string querySketchFile, string outputFile
 	#endif
 	vector<sketch_t> querySketches;
 	if(!isSketchFile(querySketchFile)){
-		err(errno, "error: %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
+		err(errno, "ERROR: command_sub, %s is not sketch file, need input sketch file\n", querySketchFile.c_str());
 	}
 	readSketches(querySketches, info, querySketchFile);
 
@@ -637,7 +665,11 @@ void command_merge(string inputList, string outputFile, int threads){
 
 	vector<sketch_t> resSketches;
 	//readSketches(resSketches, resInfo, fileList[0]);
-	FILE * fp0 = fopen(fileList[0].c_str(), "rb+");
+	FILE * fp0 = fopen(fileList[0].c_str(), "rb");
+	if(!fp0){
+		fprintf(stderr, "ERROR: command_merge(), cannot open file: %s\n", fileList[0].c_str());
+		exit(1);
+	}
 	fread(&resInfo, sizeof(sketchInfo_t), 1, fp0);
 	int sketchNumber0 = resInfo.genomeNumber;
 	int * genomeNameSize0 = new int[sketchNumber0];
@@ -649,13 +681,15 @@ void command_merge(string inputList, string outputFile, int threads){
 		totalGenomeNameSize.emplace_back(genomeNameSize0[j]);
 		totalHashSetSize.emplace_back(hashSetSize0[j]);
 	}
+	fclose(fp0);
 
 	for(int i = 1; i < fileList.size(); i++){
-		FILE * fpTmp = fopen(fileList[i].c_str(), "rb+");
+		FILE * fpTmp = fopen(fileList[i].c_str(), "rb");
 		sketchInfo_t curInfo;
 		fread(&curInfo, sizeof(sketchInfo_t), 1, fpTmp);
-		if(curInfo.half_k != resInfo.half_k || curInfo.half_subk != resInfo.half_subk || curInfo.drlevel != resInfo.drlevel){
-			cerr << "the sketch info in the list file: " << inputList << " is not same, cannot merge" << endl;
+		//if(curInfo.half_k != resInfo.half_k || curInfo.half_subk != resInfo.half_subk || curInfo.drlevel != resInfo.drlevel){
+		if(curInfo.id != resInfo.id){
+			fprintf(stderr, "ERROR: command_merge(), the sketch infos in the list file: %s is not same, cannot merge.\n");
 			exit(1);
 		}
 		int curSketchNumber = curInfo.genomeNumber;

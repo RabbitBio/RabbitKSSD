@@ -239,7 +239,7 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 
 
 
-bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, string outputFile){
+bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile){
 	//cerr << "run the sketchFastaFile " << endl;
 	int half_k = parameter.half_k;
 	int half_subk = parameter.half_subk;
@@ -450,11 +450,12 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	if(!isSketchFile(outputFile)){
 		outputFile = outputFile + ".sketch";
 	}
-	sketchInfo_t info;
+
 	info.half_k = half_k;
 	info.half_subk = half_subk;
 	info.drlevel = drlevel;
-	//info.genomeNumber = sketches.size();
+	info.id = (half_k << 8) + (half_subk << 4) + drlevel;
+	info.genomeNumber = sketches.size();
 	saveSketches(sketches, info, outputFile);
 	cerr << "save the sketches into: " << outputFile << endl;
 
@@ -472,7 +473,7 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 }
 
 
-bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, string outputFile){
+bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile){
 	cerr << "run the sketchFastqFile " << endl;
 	int half_k = parameter.half_k;
 	int half_subk = parameter.half_subk;
@@ -697,10 +698,10 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	if(!isSketchFile(outputFile)){
 		outputFile = outputFile + ".sketch";
 	}
-	sketchInfo_t info;
 	info.half_k = half_k;
 	info.half_subk = half_subk;
 	info.drlevel = drlevel;
+	info.id = (half_k << 8) + (half_subk << 4) + drlevel;
 	//info.genomeNumber = sketches.size();
 	saveSketches(sketches, info, outputFile);
 	cerr << "save the sketches into: " << outputFile << endl;
@@ -720,7 +721,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 
 
 
-void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFile, string indexFile, int numThreads){
+void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFile, string indexFile, int numThreads){
 	double t0 = get_sec();
 	int half_k = info.half_k;
 	int drlevel = info.drlevel;
@@ -747,6 +748,7 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFil
 	FILE * fp0 = fopen(dictFile.c_str(), "w+");
 	uint64_t totalIndex = 0;
 	for(int hash = 0; hash < hashSize; hash++){
+		offsetArr[hash] = 0;
 		if(hashMapId[hash].size() != 0){
 			fwrite(hashMapId[hash].data(), sizeof(uint32_t), hashMapId[hash].size(), fp0);
 			totalIndex += hashMapId[hash].size();
@@ -775,7 +777,7 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t info, string dictFil
 }
 
 
-void saveSketches(vector<sketch_t>& sketches, sketchInfo_t info, string outputFile){
+void saveSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile){
 
 	FILE * fp = fopen(outputFile.c_str(), "w+");
 	int sketchNumber = sketches.size();
@@ -794,6 +796,7 @@ void saveSketches(vector<sketch_t>& sketches, sketchInfo_t info, string outputFi
 	//cerr << "the total name length is: " << totalLength << endl;
 	//fwrite(&parameter, sizeof(kssd_parameter_t), 1, fp);
 	info.genomeNumber = sketchNumber;
+	info.id = (info.half_k << 8) + (info.half_subk << 4) + info.drlevel;
 	fwrite(&info, sizeof(sketchInfo_t), 1, fp);
 	//fwrite(&sketchNumber, sizeof(int), 1, fp);
 	fwrite(genomeNameSize, sizeof(int), sketchNumber, fp);
@@ -811,7 +814,7 @@ void saveSketches(vector<sketch_t>& sketches, sketchInfo_t info, string outputFi
 }
 
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile){
-	FILE * fp = fopen(inputFile.c_str(), "rb+");
+	FILE * fp = fopen(inputFile.c_str(), "rb");
 	if(!fp){
 		fprintf(stderr, "ERROR: readSketches(), cannot open the file: %s\n", inputFile.c_str());
 		exit(1);
@@ -914,10 +917,11 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	int infile_num = curStat.infile_num;
 	int kmerSize = curStat.kmerlen;
 	int dim_rd_len = curStat.dim_rd_len;
-	info.genomeNumber = infile_num;
+	info.id = shuf_id;
 	info.half_k = kmerSize / 2;
 	info.half_subk = 6;
 	info.drlevel = dim_rd_len / 2;
+	info.genomeNumber = infile_num;
 	uint64_t all_ctx_ct = curStat.all_ctx_ct;
 
 	//cerr << "sizeof size_t is: " << sizeof(size_t) << endl;
@@ -1054,7 +1058,8 @@ void convert_from_RabbitKSSDSketch_to_KssdSketch(vector<sketch_t>& sketches, ske
 		exit(1);
 	}
 	co_dstat_t curStat;
-	curStat.shuf_id = 348842630;
+	//curStat.shuf_id = 348842630;
+	curStat.shuf_id = info.id;
 	curStat.koc = false;
 	curStat.kmerlen = info.half_k * 2;
 	curStat.dim_rd_len = info.drlevel * 2;

@@ -27,15 +27,15 @@ void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outpu
 	string dictFile = refSketchOut + ".dict";
 	size_t hashSize;
 	uint64_t totalIndex;
-	FILE * fp0 = fopen(indexFile.c_str(), "rb");
-	if(!fp0){
+	FILE * fp_index = fopen(indexFile.c_str(), "rb");
+	if(!fp_index){
 		cerr << "error opening the index sketch file: " << indexFile << endl;
 		exit(1);
 	}
-	fread(&hashSize, sizeof(size_t), 1, fp0);
-	fread(&totalIndex, sizeof(uint64_t), 1, fp0);
-	int * sketchSizeArr = (int*)malloc(hashSize * sizeof(int));
-	fread(sketchSizeArr, sizeof(int), hashSize, fp0);
+	fread(&hashSize, sizeof(size_t), 1, fp_index);
+	fread(&totalIndex, sizeof(uint64_t), 1, fp_index);
+	uint32_t * sketchSizeArr = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
+	fread(sketchSizeArr, sizeof(uint32_t), hashSize, fp_index);
 
 	size_t * offset = (size_t*)malloc(hashSize * sizeof(size_t));
 	uint64_t totalHashNumber = 0;
@@ -48,6 +48,7 @@ void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outpu
 		cerr << "error of the total hash number" << endl;
 		exit(1);
 	}
+	fclose(fp_index);
 
 	//cerr << "the hashSize is: " << hashSize << endl;
 	//cerr << "totalIndex is: " << totalIndex << endl;
@@ -55,12 +56,12 @@ void index_tridist(vector<sketch_t>& sketches, string refSketchOut, string outpu
 	//cerr << "offset[n-1] is: " << offset[hashSize-1] << endl;;
 
 	int * indexArr = (int*)malloc(totalHashNumber * sizeof(int));
-	FILE * fp1 = fopen(dictFile.c_str(), "rb");
-	if(!fp1){
+	FILE * fp_dict = fopen(dictFile.c_str(), "rb");
+	if(!fp_dict){
 		cerr << "error opening the dictionary sketch file: " << dictFile << endl;
 		exit(1);
 	}
-	fread(indexArr, sizeof(int), totalHashNumber, fp1);
+	fread(indexArr, sizeof(int), totalHashNumber, fp_dict);
 
 	#ifdef Timer
 	double t1 = get_sec();
@@ -322,6 +323,7 @@ void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, doub
 }
 
 void index_dist(vector<sketch_t>& ref_sketches, string refSketchOut, vector<sketch_t>& query_sketches, string outputFile, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
+
 	#ifdef Timer
 	double t0 = get_sec();
 	#endif
@@ -329,13 +331,14 @@ void index_dist(vector<sketch_t>& ref_sketches, string refSketchOut, vector<sket
 	string refDictFile = refSketchOut + ".dict";
 	size_t refHashSize;
 	uint64_t refTotalIndex;
-	FILE* fp0 = fopen(refIndexFile.c_str(), "rb");
-	fread(&refHashSize, sizeof(size_t), 1, fp0);
-	fread(&refTotalIndex, sizeof(uint64_t), 1, fp0);
-	int* refSketchSizeArr = (int*)malloc(refHashSize * sizeof(int));
-	fread(refSketchSizeArr, sizeof(int), refHashSize, fp0);
+	FILE* fp_index = fopen(refIndexFile.c_str(), "rb");
+	fread(&refHashSize, sizeof(size_t), 1, fp_index);
+	fread(&refTotalIndex, sizeof(uint64_t), 1, fp_index);
+	uint32_t* refSketchSizeArr = (uint32_t*)malloc(refHashSize * sizeof(uint32_t));
+	fread(refSketchSizeArr, sizeof(uint32_t), refHashSize, fp_index);
+	fclose(fp_index);
 
-	size_t* refOffset = (size_t*)malloc(refHashSize * sizeof(int));
+	size_t* refOffset = (size_t*)malloc(refHashSize * sizeof(size_t));
 	uint64_t refTotalHashNumber = 0;
 	for(int i = 0; i < refHashSize; i++){
 		refTotalHashNumber += refSketchSizeArr[i];
@@ -346,18 +349,18 @@ void index_dist(vector<sketch_t>& ref_sketches, string refSketchOut, vector<sket
 		cerr << "error of the total hash number of refSketch" << endl;
 		exit(1);
 	}
-	cerr << "the refHashSize is: " << refHashSize << endl;
+	//cerr << "the refHashSize is: " << refHashSize << endl;
 	//cerr << "the refTotalIndex is: " << refTotalIndex << endl;
 	//cerr << "refTotalHashNumber is: " << refTotalHashNumber << endl;
 	//cerr << "the refOffset[n-1] is: " << refOffset[refHashSize-1] << endl;
 	
 	int* refIndexArr = (int*)malloc(refTotalHashNumber * sizeof(int));
-	FILE* fp1 = fopen(refDictFile.c_str(), "rb");
-	fread(refIndexArr, sizeof(int), refTotalHashNumber, fp1);
-
+	FILE* fp_dict = fopen(refDictFile.c_str(), "rb");
+	fread(refIndexArr, sizeof(int), refTotalHashNumber, fp_dict);
+	fclose(fp_dict);
 	#ifdef Timer
 	double t1 = get_sec();
-	cerr << "===================time of read the index and offset sketch file is: " << t1 - t0 << endl;
+	cerr << "===================time of read the index and dict sketch file is: " << t1 - t0 << endl;
 	#endif
 	size_t numRef = ref_sketches.size();
 	size_t numQuery = query_sketches.size();

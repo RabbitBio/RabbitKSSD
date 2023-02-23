@@ -49,13 +49,8 @@ int write_shuffle_dim_file(dim_shuffle_stat_t* stat, string shuffle_file){
 		fprintf(stderr, "ERROR: write_shuffle_dim_file(), error open shuffle file %s\n", shuffle_file.c_str());
 		exit(1);
 	}
-	int id = 0;
-	id += stat->k;
-	id = id << 4;
-	id += stat->subk;
-	id = id << 4;
-	id += stat->drlevel;
-	stat->id = id;
+
+	stat->id = (stat->k << 8) + (stat->subk << 4) + stat->drlevel;
 	//cerr << "the stat->id is: " << stat->id << endl;
 	//stat->id = 348842630;
 	int* shuffled_dim = shuffleN(1 << 4*stat->subk, 0);
