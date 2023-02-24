@@ -35,13 +35,13 @@ int main(int argc, char * argv[]){
 	app.require_subcommand(1);
 	CLI::App * shuffle = app.add_subcommand("shuffle", "generate the shuffle file for sketching usage");
 	CLI::App * sketch = app.add_subcommand("sketch", "compute sketches for the input genome list");//TODO: only support input list
-	CLI::App * info = app.add_subcommand("info", "get the information of the sketch file");
 	CLI::App * alldist = app.add_subcommand("alldist", "compute all-vs-all distances for one input dataset");
 	CLI::App * dist = app.add_subcommand("dist", "compute the all-vs-all distances between reference genomes and query datasets");
 	CLI::App * setUnion = app.add_subcommand("union", "compute the set union from multiple sketches");
 	CLI::App * sub = app.add_subcommand("sub", "subtract the reference sketch from the query sketches");
 	CLI::App * convert = app.add_subcommand("convert", "convert the sketches between Kssd format and RabbitKSSD format");
 	CLI::App * merge = app.add_subcommand("merge", "merge multiple sketch files into one single sketch file");
+	CLI::App * info = app.add_subcommand("info", "get the information of the sketch file");
 
 	string refList = "default";
 	string queryList = "default";

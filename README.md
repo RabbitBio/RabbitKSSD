@@ -213,8 +213,6 @@ Find the nearest neighbor reference for query dataset.
 ```
 
 
-## Example:
-
 ## Bug Report
 All bug reports, comments and suggestions are welcome.
 
