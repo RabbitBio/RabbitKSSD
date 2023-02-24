@@ -11,7 +11,7 @@ RabbitKSSD version 1.0.0 can only support 64-bit Linux Systems.
 * c++14
 * [zlib](https://zlib.net/)
 
-### Install automatically (suggested)
+### Install
 * The `install.sh` is used for compiling and installing RabbitKSSD.
 * The `init_shuffle.sh` is used for generating the shuffle files and save in the `shuf_file/` directory.
 ```bash
@@ -23,7 +23,7 @@ cd RabbitKSSD
 ./init_shuffle.sh
 ```
 
-### Compile from the source code manually
+### Compile from the source code
 ```bash
 git clone --recursive https://github.com/RabbitBio/RabbitKSSD.git
 cd RabbitKSSD
