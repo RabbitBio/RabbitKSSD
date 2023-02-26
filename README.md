@@ -10,8 +10,10 @@ RabbitKSSD version 1.0.0 can only support 64-bit Linux Systems.
 * cmake v.3.0 or later
 * c++14
 * [zlib](https://zlib.net/)
+* [RabbitFX](https://github.com/RabbitBio/RabbitFX)
 
 ### Install
+* Pay attention to the `--recursive` option for submodule `RabbitFX`.
 * The `install.sh` is used for compiling and installing RabbitKSSD.
 * The `init_shuffle.sh` is used for generating the shuffle files and save in the `shuf_file/` directory.
 ```bash
@@ -197,7 +199,7 @@ Find the nearest neighbor reference for query dataset.
 
 
 ### sub 
-**The sub-command `sub` is used for substracting the reference sketch hash set from each query sketch.**
+**The sub-command `sub` is used for subtracting the reference sketch hash set from each query sketch.**
 
 `-h`: For help information.\
 `--rs human.sketch`: Set the reference sketch file `human.sketch` to be subtracted from the query sketches.\
