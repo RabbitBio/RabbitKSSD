@@ -39,6 +39,11 @@ int write_shuffle_dim_file(dim_shuffle_stat_t* stat, string shuffle_file){
 		fprintf(stderr, "ERROR: write_shuffle_dim_file(), subk %d should be smaller than 8\n", stat->subk);
 		exit(1);
 	}
+	int bit_after_reduction = stat->k - stat->drlevel;
+	if(bit_after_reduction > 8){
+		fprintf(stderr, "Error: write_shuffle_dim_file(), too large half_k(%d) and too small drlevel(%d), use little -k(%d) or large -l(%d)\n", stat->k, stat->drlevel, stat->k-1, stat->drlevel+1);
+		exit(1);
+	}
 	int dim_after_reduction = 1 << (4 * (stat->subk - stat->drlevel));
 	if(dim_after_reduction < MIN_SUBCTX_DIM_SMP_SZ){
 		fprintf(stderr, "Warning: write_shuffle_dim_file(), dimension after reduction %d is smaller than the suggested minimal, which might cause loss of robustness, -s %d is suggested", dim_after_reduction, stat->drlevel+3);
