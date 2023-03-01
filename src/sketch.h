@@ -58,7 +58,7 @@ bool cmpSketchName(sketch_t s1, sketch_t s2);
 
 bool isSketchFile(string inputFile);
 bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile);
-bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile);
+bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastQual, int leastNumKmer, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile);
 void saveSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile);
 void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFile);
 void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFile, string indexFile, int numThreads);

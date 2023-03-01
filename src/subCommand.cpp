@@ -47,7 +47,7 @@ void command_convert(string inputDir, bool to_Kssd_sketch, bool isQuery, string 
 }
 
 
-void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, int threads){
+void command_sketch(string refList, bool isQuery, string outputFile, kssd_parameter_t kssd_parameter, int leastQual, int leastNumKmer, int threads){
 	vector<sketch_t> sketches;
 	sketchInfo_t info;
 	//bool isReference = true;
@@ -58,7 +58,7 @@ void command_sketch(string refList, bool isQuery, string outputFile, kssd_parame
 		success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, info, outputFile);
 	}
 	else if(isFastqList(refList)){
-		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastNumKmer, sketches, info, outputFile);
+		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastQual, leastNumKmer, sketches, info, outputFile);
 	}
 	else{
 		cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -130,7 +130,7 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	//	printInfos(sketches, outputFile);
 }
 
-void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, double maxDist, int isContainment, int threads){
+void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_parameter, int leastQual, int leastNumKmer, double maxDist, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3;
 	int kmer_size = kssd_parameter.half_k * 2;
@@ -156,7 +156,7 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 			success = sketchFastaFile(refList, false, threads, kssd_parameter, sketches, info, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, sketches, info, refSketchOut);
+			success = sketchFastqFile(refList, false, threads, kssd_parameter, leastQual, leastNumKmer, sketches, info, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -175,7 +175,7 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 }
 
 
-void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int leastNumKmer, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
+void command_dist(string refList, string queryList, string outputFile, kssd_parameter_t kssd_parameter, int leastQual, int leastNumKmer, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int threads){
 	double t2 = get_sec();
 	double t3, t4;
 	int kmer_size = kssd_parameter.half_k * 2;
@@ -208,7 +208,7 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 			success0 = sketchFastaFile(refList, false, threads, kssd_parameter, ref_sketches, ref_info, refSketchOut);
 		}
 		else if(isFastqList(refList)){
-			success0 = sketchFastqFile(refList, false, threads, kssd_parameter, leastNumKmer, ref_sketches, ref_info, refSketchOut);
+			success0 = sketchFastqFile(refList, false, threads, kssd_parameter, leastQual, leastNumKmer, ref_sketches, ref_info, refSketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
@@ -240,7 +240,7 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 			success1 = sketchFastaFile(queryList, true, threads, kssd_parameter, query_sketches, query_info, querySketchOut);
 		}
 		else if(isFastqList(queryList)){
-			success1 = sketchFastqFile(queryList, true, threads, kssd_parameter, leastNumKmer, query_sketches, query_info, querySketchOut);
+			success1 = sketchFastqFile(queryList, true, threads, kssd_parameter, leastQual, leastNumKmer, query_sketches, query_info, querySketchOut);
 		}
 		else{
 			cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;

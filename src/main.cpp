@@ -58,6 +58,7 @@ int main(int argc, char * argv[]){
 	bool isDetail = false;
 	int maxNeighbor = 1;
 	int leastNumKmer = 1;
+	int leastQual = 0;
 
 	auto shuffle_option_k = shuffle->add_option("-k, --halfk", half_k, "the half length of kmer size");
 	auto shuffle_option_s = shuffle->add_option("-s, --subk", half_subk, "the half length of substring space");
@@ -70,6 +71,7 @@ int main(int argc, char * argv[]){
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
 	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto sketch_option_n = sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	auto sketch_option_Q = sketch->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
 	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	//sketch_option_L->required();
 	sketch_option_i->required();
@@ -94,6 +96,7 @@ int main(int argc, char * argv[]){
 	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto alldist_option_n = alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	auto alldist_option_Q = alldist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
 	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	alldist_option_i->required();
 	alldist_option_o->required();
@@ -107,6 +110,7 @@ int main(int argc, char * argv[]){
 	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	auto dist_option_n = dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	auto dist_option_Q = dist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
 	dist_option_r->required();
 	dist_option_q->required();
 	dist_option_o->required();
@@ -218,7 +222,7 @@ int main(int argc, char * argv[]){
 		drlevel = shuffled_info->dim_shuffle_stat.drlevel;
 		kssd_parameter_t kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 
-		command_sketch(refList, isQuery, outputFile, kssd_parameter, leastNumKmer, threads);
+		command_sketch(refList, isQuery, outputFile, kssd_parameter, leastQual, leastNumKmer, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(alldist)){
@@ -231,7 +235,7 @@ int main(int argc, char * argv[]){
 			drlevel = shuffled_info->dim_shuffle_stat.drlevel;
 			kssd_parameter = initParameter(half_k, half_subk, drlevel, shuffled_info->shuffled_dim);
 		}
-		command_alldist(refList, outputFile, kssd_parameter, leastNumKmer, maxDist, isContainment, threads);
+		command_alldist(refList, outputFile, kssd_parameter, leastQual, leastNumKmer, maxDist, isContainment, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(dist)){
@@ -248,7 +252,7 @@ int main(int argc, char * argv[]){
 		if(*dist_option_N){
 			isNeighbor = true;
 		}
-		command_dist(refList, queryList, outputFile, kssd_parameter, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
+		command_dist(refList, queryList, outputFile, kssd_parameter, leastQual, leastNumKmer, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 		return 0;
 	}
 	

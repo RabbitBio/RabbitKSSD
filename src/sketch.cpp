@@ -168,7 +168,7 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, ro
 	//	hashArr.push_back(x);
 }
 
-void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, int& leastNumKmer, robin_hood::unordered_map<uint32_t, int>& hashValueMap){
+void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, int& leastQual, int& leastNumKmer, robin_hood::unordered_map<uint32_t, int>& hashValueMap){
 
 	int half_k = parameter.half_k;
 	int drlevel = parameter.drlevel;
@@ -195,6 +195,8 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 		for(Reference &r: data){
 			int length = r.seq.length();
 			string name = r.name;
+			string quality = r.quality;
+			//fprintf(stderr, "fff quality is: %s\n", quality.c_str());
 			//cout << name << endl;
 			//cout << r.seq << endl;
 			//fprintf(fpTmp, "%s\n", r.seq.c_str());
@@ -206,7 +208,7 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 			for(int i = 0; i < length; i++){
 				char ch = r.seq[i];
 				int basenum = BaseMap[(int)ch];
-				if(basenum != -1)
+				if(basenum != -1 && quality[i] >= leastQual)
 				{
 					tuple = ((tuple << 2) | basenum) & tupmask;
 					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
@@ -473,8 +475,8 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 }
 
 
-bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastNumKmer, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile){
-	cerr << "run the sketchFastqFile " << endl;
+bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parameter_t parameter, int leastQual, int leastNumKmer, vector<sketch_t>& sketches, sketchInfo_t& info, string outputFile){
+	//cerr << "run the sketchFastqFile " << endl;
 	int half_k = parameter.half_k;
 	int half_subk = parameter.half_subk;
 	int drlevel = parameter.drlevel;
@@ -555,7 +557,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				thread_idArr[t] = t;
 			}
 			for(int t = 0; t < numConsumer; t++){
-				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), std::ref(shuffled_map), std::ref(leastNumKmer), std::ref(hashValueMaps[t]))); 
+				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), std::ref(shuffled_map), std::ref(leastQual), std::ref(leastNumKmer), std::ref(hashValueMaps[t]))); 
 			}
 			m_reader.join_producer();
 			for(int t = 0; t < numConsumer; t++){
@@ -617,6 +619,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 			totalLength += length;
 			string name = ks1->name.s;
 			string comment = ks1->comment.s;
+			string quality = ks1->qual.s;
 			//char * sequence = ks1->seq.s;
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
 			int keyCount = 0;
@@ -629,7 +632,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				char ch = ks1->seq.s[i];
 				int curCh = int(ch);
 				int basenum = BaseMap[(int)ch];
-				if(basenum != -1)
+				if(basenum != -1 && quality[i] >= leastQual)
 				{
 					tuple = ((tuple << 2) | basenum) & tupmask;
 					rvs_tuple = (rvs_tuple >> 2) + (((uint64_t)basenum ^3LLU) << rev_add_move); 
