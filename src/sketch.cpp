@@ -303,11 +303,17 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
  
  	if(numBigFasta != 0){
 		int numConsumer = 7;
-		int numGroup = numThreads / (numConsumer + 1);
-		if(numBigFasta < numGroup){
-			numGroup = numBigFasta;
-			numConsumer = numThreads / numGroup - 1;
+		int numGroup;
+		if(numConsumer >= numThreads-1 || (numConsumer+1)*2 > numThreads){
+			numGroup = 1;
 		}
+		else{
+			numGroup = numThreads / (numConsumer + 1);
+			if(numBigFasta < numGroup){
+				numGroup = numBigFasta;
+			}
+		}
+		numConsumer = numThreads/numGroup - 1;
 		cerr << "the numThreads is: " << numThreads << endl;
 		cerr << "the numGroup for sketching fasta is: " << numGroup << endl;
 		cerr << "the numConsumer for fasta is: " << numConsumer << endl;
@@ -537,11 +543,17 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 
  	if(numBigFastq != 0){
 		int numConsumer = 7;
-		int numGroup = numThreads / (numConsumer + 1);
-		if(numBigFastq < numGroup){
-			numGroup = numBigFastq;
-			numConsumer = numThreads / numGroup - 1;
+		int numGroup;
+		if(numConsumer >= numThreads-1 || (numConsumer+1)*2 > numThreads){
+			numGroup = 1;
 		}
+		else{
+			numGroup = numThreads / (numConsumer+1);
+			if(numBigFastq < numGroup){
+				numGroup = numBigFastq;
+			}
+		}
+		numConsumer = numThreads/numGroup - 1;
 		//numConsumer = 4;
 		cerr << "the numThreads is: " << numThreads << endl;
 		cerr << "the numGroup for sketching fastq is: " << numGroup << endl;
