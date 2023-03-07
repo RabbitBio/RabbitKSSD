@@ -379,8 +379,12 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				break;
 			}
 			totalLength += length;
-			string name = ks1->name.s;
-			string comment = ks1->comment.s;
+			string name("noName");
+			string comment("noComment");
+			if(ks1->name.s != NULL)
+				name = ks1->name.s;
+			if(ks1->comment.s != NULL)
+				comment = ks1->comment.s;
 			//char * sequence = ks1->seq.s;
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
 			int keyCount = 0;
@@ -629,9 +633,15 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				break;
 			}
 			totalLength += length;
-			string name = ks1->name.s;
-			string comment = ks1->comment.s;
-			string quality = ks1->qual.s;
+			string name("noName");
+			string comment("noComment");
+			string quality("noQuality");
+			if(ks1->name.s != NULL)
+				name = ks1->name.s;
+			if(ks1->comment.s != NULL)
+				comment = ks1->comment.s;
+			if(ks1->qual.s != NULL)
+				quality = ks1->qual.s;
 			//char * sequence = ks1->seq.s;
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
 			int keyCount = 0;
