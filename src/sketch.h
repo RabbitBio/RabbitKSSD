@@ -50,6 +50,8 @@ typedef struct co_dirstat
 bool existFile(string fileName);
 bool isFastaList(string inputList);
 bool isFastqList(string inputList);
+bool isFastaGZList(string inputList);
+bool isFastqGZList(string inputList);
 
 bool cmpSketch(sketch_t s1, sketch_t s2);
 

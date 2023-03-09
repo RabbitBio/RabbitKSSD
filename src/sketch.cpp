@@ -67,10 +67,10 @@ bool isFastq(string inputFile){
 
 bool isFastaList(string inputList){
 	ifstream ifs(inputList);
-	string line;
+	string fileName;
 	bool res = true;
-	while(getline(ifs, line)){
-		if(!isFasta(line)){
+	while(getline(ifs, fileName)){
+		if(!isFasta(fileName)){
 			res = false;
 			break;
 		}
@@ -81,10 +81,10 @@ bool isFastaList(string inputList){
 
 bool isFastqList(string inputList){
 	ifstream ifs(inputList);
-	string line;
+	string fileName;
 	bool res = true;
-	while(getline(ifs, line)){
-		if(!isFastq(line)){
+	while(getline(ifs, fileName)){
+		if(!isFastq(fileName)){
 			res = false;
 			break;
 		}
@@ -93,6 +93,72 @@ bool isFastqList(string inputList){
 	return res;
 }
 
+bool isFastaGZList(string inputList){
+	ifstream ifs(inputList);
+	bool res = true;
+	string fileName;
+	while(getline(ifs, fileName)){
+		int end_index0 = fileName.find_last_of('.');
+		if(end_index0 == string::npos){
+			res = false;
+			break;
+		}
+		string suffix0 = fileName.substr(end_index0+1);
+		//cerr << "suffix0 is: " << suffix0 << endl;
+		if(suffix0 != "gz"){
+			res = false;
+			break;
+		}
+		string prefix0 = fileName.substr(0, end_index0);
+		int end_index1 = prefix0.find_last_of('.');
+		if(end_index1 == string::npos){
+			res = false;
+			break;
+		}
+		string suffix1 = prefix0.substr(end_index1+1);
+		//cerr << "suffix1 is: " << suffix1 << endl;
+
+		if(suffix1 != "fna" && suffix1 != "fasta" && suffix1 != "fa"){
+			res = false;
+			break;
+		}
+	}
+	ifs.close();
+	return res;
+}
+
+bool isFastqGZList(string inputList){
+	ifstream ifs(inputList);
+	bool res = true;
+	string fileName;
+	while(getline(ifs, fileName)){
+		int end_index0 = fileName.find_last_of('.');
+		if(end_index0 == string::npos){
+			res = false;
+			break;
+		}
+		string suffix0 = fileName.substr(end_index0+1);
+		//cerr << "suffix0 is: " << suffix0 << endl;
+		if(suffix0 != "gz"){
+			res = false;
+			break;
+		}
+		string prefix0 = fileName.substr(0, end_index0);
+		int end_index1 = prefix0.find_last_of('.');
+		if(end_index1 == string::npos){
+			res = false;
+			break;
+		}
+		string suffix1 = prefix0.substr(end_index1+1);
+		//cerr << "suffix1 is: " << suffix1 << endl;
+		if(suffix1 != "fq" && suffix1 != "fastq"){
+			res = false;
+			break;
+		}
+	}
+	ifs.close();
+	return res;
+}
 
 bool isSketchFile(string inputFile){
 	int startPos = inputFile.find_last_of('.');

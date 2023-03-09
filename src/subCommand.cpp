@@ -54,14 +54,14 @@ void command_sketch(string refList, bool isQuery, string outputFile, kssd_parame
 	//bool success = sketchFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
 	//bool success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, outputFile);
 	bool success;
-	if(isFastaList(refList)){
+	if(isFastaList(refList) || isFastaGZList(refList)){
 		success = sketchFastaFile(refList, isQuery, threads, kssd_parameter, sketches, info, outputFile);
 	}
-	else if(isFastqList(refList)){
+	else if(isFastqList(refList) || isFastqGZList(refList)){
 		success = sketchFastqFile(refList, isQuery, threads, kssd_parameter, leastQual, leastNumKmer, sketches, info, outputFile);
 	}
 	else{
-		cerr << "the input file list for sketching must be list of fasta and fastq file" << endl;
+		cerr << "the input file list for sketching must be list of fasta and fastq file in normal format or gz format" << endl;
 		exit(1);
 	}
 }
