@@ -171,7 +171,7 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 				uint64_t hash64 = sketches[i].hashSet64[j];
 				//if(!(dict[hash64/64] & (0x8000000000000000LLU >> (hash64 % 64))))	continue;
 				if(hash_map_arr.count(hash64) == 0) continue;
-				//for(auto x : hash_map_arr[hash64]){
+				//for(auto x : hash_map_arr[hash64])
 				for(size_t k = 0; k < hash_map_arr[hash64].size(); k++){
 					size_t cur_index = hash_map_arr[hash64][k];
 					intersectionArr[tid][cur_index]++;
@@ -206,7 +206,11 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 			}
 			if(!isContainment){
 				int denom = size0 + size1 - common;
-				double jaccard = (double)common / denom;
+				double jaccard;
+				if(size0 == 0 || size1 == 0)
+					jaccard = 0.0;
+				else
+					jaccard = (double)common / denom;
 				double mashD;
 				if(jaccard == 1.0)
 					mashD = 0.0;
@@ -221,7 +225,11 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 			}
 			else{
 				int denom = std::min(size0, size1);
-				double containment = (double)common / denom;
+				double containment;
+				if(size0 == 0 || size1 == 0)
+					containment = 0.0;
+				else
+					containment = (double)common / denom;
 				double AafD;
 				if(containment == 1.0)
 					AafD = 0.0;
@@ -587,7 +595,11 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			}
 			if(!isContainment){
 				int denom = size0 + size1 - common;
-				double jaccard = (double)common / denom;
+				double jaccard;
+				if(size0 == 0 || size1 == 0)
+					jaccard = 0.0;
+				else
+					jaccard = (double)common / denom;
 				double mashD;
 				if(jaccard == 1.0)
 					mashD = 0.0;
@@ -620,7 +632,11 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			}
 			else{
 				int denom = std::min(size0, size1);
-				double containment = (double)common / denom;
+				double containment;
+				if(size0 == 0 || size1 == 0)
+					containment = 0.0;
+				else
+					containment = (double)common / denom;
 				double AafD;
 				if(containment == 1.0)
 					AafD = 0.0;

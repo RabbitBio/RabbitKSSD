@@ -237,7 +237,7 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, bo
 	//	hashArr.push_back(x);
 }
 
-void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, int& leastQual, int& leastNumKmer, robin_hood::unordered_map<uint32_t, int>& hashValueMap){
+void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, bool use64, robin_hood::unordered_map<uint32_t, int>& shuffled_map, int& leastQual, int& leastNumKmer, robin_hood::unordered_map<uint32_t, int>& hashValueMap, robin_hood::unordered_map<uint64_t, int>& hashValueMap64){
 
 	int half_k = parameter.half_k;
 	int drlevel = parameter.drlevel;
@@ -297,9 +297,14 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 
 					pfilter -= dim_start;
 					dr_tuple = (((uni_tuple & undomask0) | ((uni_tuple & undomask1) << (kmer_size * 2 - half_outctx_len * 4))) >> (drlevel * 4)) | pfilter; 
-					hashValueMap.insert({dr_tuple, 0});
-					hashValueMap[dr_tuple]++;
-
+					if(use64){
+						hashValueMap64.insert({dr_tuple, 0});
+						hashValueMap64[dr_tuple]++;
+					}
+					else{
+						hashValueMap.insert({dr_tuple, 0});
+						hashValueMap[dr_tuple]++;
+					}
 				}
 			} //end for, of a sequence
 		}//end of all sequence
@@ -605,6 +610,8 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	uint64_t undomask1 = parameter.undomask1;
 	uint64_t domask = parameter.domask;
 
+	bool use64 = half_k - drlevel > 8 ? true : false;
+
 	int dim_size = 1 << 4 * (half_k - half_outctx_len);
 	robin_hood::unordered_map<uint32_t, int> shuffled_map;
 	for(int t = 0; t < dim_size; t++){
@@ -668,6 +675,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		for(int i = 0; i < bigFastqArr.size(); i++){
 			//vector<uint32_t> hashArr[numConsumer];
 			robin_hood::unordered_map<uint32_t, int> hashValueMaps[numConsumer];
+			robin_hood::unordered_map<uint64_t, int> hashValueMaps64[numConsumer];
 			FXReader<FQ_SE> m_reader(bigFastqArr[i]);
 			std::thread ** threads =new std::thread*[numConsumer];
 			int thread_idArr[numConsumer];
@@ -675,7 +683,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				thread_idArr[t] = t;
 			}
 			for(int t = 0; t < numConsumer; t++){
-				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), std::ref(shuffled_map), std::ref(leastQual), std::ref(leastNumKmer), std::ref(hashValueMaps[t]))); 
+				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), use64, std::ref(shuffled_map), std::ref(leastQual), std::ref(leastNumKmer), std::ref(hashValueMaps[t]), std::ref(hashValueMaps64[t]))); 
 			}
 			m_reader.join_producer();
 			for(int t = 0; t < numConsumer; t++){
@@ -684,24 +692,45 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 			
 			sketch_t tmpSketch;
 			robin_hood::unordered_map<uint32_t, int> finalHashValueMap;
+			robin_hood::unordered_map<uint64_t, int> finalHashValueMap64;
 			vector<uint32_t> finalHashArr;
-			for(int i = 0; i < numConsumer; i++){
-				for(auto x : hashValueMaps[i]){
-					uint32_t key = x.first;
-					finalHashValueMap.insert({key, 0});
-					finalHashValueMap[key] += x.second;
-					//finalMap.insert(x);	
+			vector<uint64_t> finalHashArr64;
+			if(use64){
+				for(int i = 0; i < numConsumer; i++){
+					for(auto x : hashValueMaps64[i]){
+						uint64_t key = x.first;
+						finalHashValueMap64.insert({key, 0});
+						finalHashValueMap64[key] += x.second;
+					}
+				}
+				for(auto x : finalHashValueMap64){
+					if(x.second >= leastNumKmer){
+						finalHashArr64.push_back(x.first);
+					}
 				}
 			}
-			for(auto x : finalHashValueMap){
-				if(x.second >= leastNumKmer){
-					finalHashArr.push_back(x.first);
+			else{
+				for(int i = 0; i < numConsumer; i++){
+					for(auto x : hashValueMaps[i]){
+						uint32_t key = x.first;
+						finalHashValueMap.insert({key, 0});
+						finalHashValueMap[key] += x.second;
+						//finalMap.insert(x);	
+					}
+				}
+				for(auto x : finalHashValueMap){
+					if(x.second >= leastNumKmer){
+						finalHashArr.push_back(x.first);
+					}
 				}
 			}
 			//std::sort(finalHashArr.begin(), finalHashArr.end(), cmp);
 			tmpSketch.fileName = bigFastqArr[i];
 			tmpSketch.id = i;
-			tmpSketch.hashSet = finalHashArr;
+			if(use64)
+				tmpSketch.hashSet64 = finalHashArr64;
+			else
+				tmpSketch.hashSet = finalHashArr;
 			#pragma omp critical
 			{
 			sketches.push_back(tmpSketch);
@@ -727,6 +756,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		tmpSketch.fileName = smallFileArr[t];
 
 		unordered_map<uint32_t, int> hashValueMap;
+		unordered_map<uint64_t, int> hashValueMap64;
 		//int time = 0;
 		while(1)
 		{
@@ -787,8 +817,14 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 					dr_tuple = (((uni_tuple & undomask0) | ((uni_tuple & undomask1) << (kmer_size * 2 - half_outctx_len * 4))) >> (drlevel * 4)) | pfilter; 
 					
 					//hashValueSet.insert(dr_tuple);
-					hashValueMap.insert({dr_tuple, 0});
-					hashValueMap[dr_tuple]++;
+					if(use64){
+						hashValueMap64.insert({dr_tuple, 0});
+						hashValueMap64[dr_tuple]++;
+					}
+					else{
+						hashValueMap.insert({dr_tuple, 0});
+						hashValueMap[dr_tuple]++;
+					}
 				}//end if, i > kmer_size
 
 			}//end for, of a sequence 
@@ -797,15 +833,26 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		}//end while, read the file
 		//coList[t] = co;
 		vector<uint32_t> hashArr;
-		for(auto x : hashValueMap){
-			if(x.second >= leastNumKmer){
-				hashArr.push_back(x.first);
+		vector<uint64_t> hashArr64;
+		if(use64){
+			for(auto x : hashValueMap64){
+				if(x.second >= leastNumKmer){
+					hashArr64.push_back(x.first);
+				}
 			}
+			tmpSketch.hashSet64 = hashArr64;
+		}
+		else{
+			for(auto x : hashValueMap){
+				if(x.second >= leastNumKmer){
+					hashArr.push_back(x.first);
+				}
+			}
+			tmpSketch.hashSet = hashArr;
 		}
 
 		tmpSketch.id = t + numBigFastq;
 		//std::sort(hashArr.begin(), hashArr.end(), cmp);
-		tmpSketch.hashSet = hashArr;
 
 		gzclose(fp1);
 		kseq_destroy(ks1);
@@ -843,7 +890,6 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	}
 
 	return true;
-
 }
 
 
