@@ -22,7 +22,7 @@ typedef struct sketch
 	string comment;
 	int id;
 	vector<uint32_t> hashSet;
-
+	vector<uint64_t> hashSet64;
 } sketch_t;
 
 typedef struct sketchInfo

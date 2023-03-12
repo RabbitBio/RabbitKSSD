@@ -77,6 +77,7 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	}
 	fread(&info, sizeof(sketchInfo_t), 1, fp);
 	int sketchNumber = info.genomeNumber;
+	bool use64 = info.half_k - info.drlevel > 8 ? true : false;
 	cerr << "the number of genome is: " << sketchNumber << endl;
 	int * genomeNameSize = new int[sketchNumber];
 	int * hashSetSize = new int[sketchNumber];
@@ -89,6 +90,7 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 	char * curName = new char[maxNameLength+1];
 	int maxHashSize = 1 << 24;
 	uint32_t * curPoint = new uint32_t[maxHashSize];
+	uint64_t * curPoint64 = new uint64_t[maxHashSize];
 	for(int i = 0; i < sketchNumber; i++){
 		int curLength = genomeNameSize[i];
 		if(curLength > maxNameLength){
@@ -108,15 +110,24 @@ void command_info(string sketchFile, bool isDetail, string outputFile){
 		if(curSize > maxHashSize){
 			maxHashSize = curSize;
 			curPoint = new uint32_t[maxHashSize];
+			curPoint64 = new uint64_t[maxHashSize];
 		}
-		int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
+		int hashSize;
+		if(use64){
+			hashSize = fread(curPoint64, sizeof(uint64_t), curSize, fp);
+		}
+		else
+			hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
 		if(hashSize != curSize){
 			cerr << "ERROR: command_info, the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
 			exit(0);
 		}
 		if(isDetail){
 			for(int j = 0; j < curSize; j++){
-				fprintf(fp1, "%u\t", curPoint[j]);
+				if(use64)
+					fprintf(fp1, "%lu\t", curPoint64[j]);
+				else
+					fprintf(fp1, "%u\t", curPoint[j]);
 				if(j % 10 == 9) fprintf(fp1, "\n");
 			}
 			fprintf(fp1, "\n");
@@ -170,7 +181,7 @@ void command_alldist(string refList, string outputFile, kssd_parameter_t kssd_pa
 
 	//compute the pair distance
 	//tri_dist(sketches, outputFile, kmer_size, maxDist, threads);
-	index_tridist(sketches, refSketchOut, outputFile, kmer_size, maxDist, isContainment, threads);
+	index_tridist(sketches, info, refSketchOut, outputFile, kmer_size, maxDist, isContainment, threads);
 
 }
 
@@ -259,12 +270,13 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	}
 
 	//dist(ref_sketches, query_sketches, outputFile, kmer_size, maxDist, threads);
-	index_dist(ref_sketches, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
+	index_dist(ref_sketches, ref_info, refSketchOut, query_sketches, outputFile, kmer_size, maxDist, maxNeighbor, isNeighbor, isContainment, threads);
 	#ifdef Timer
 	double t5 = get_sec(); //cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
 	#endif
 }
 
+//TODO:need to update hash uint32_t(uint64_t)
 void command_union(string sketchFile, string outputFile, int threads){
 	
 	vector<sketch_t> sketches;
