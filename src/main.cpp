@@ -164,7 +164,8 @@ int main(int argc, char * argv[]){
 	}
 	else if(app.got_subcommand(setUnion)){
 		cerr << "-----run the subcommand: union" << endl;
-		command_union(sketchFile, outputFile, threads);
+		//command_union(sketchFile, outputFile, threads);
+		new_command_union(sketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(sub)){

@@ -275,6 +275,231 @@ void command_dist(string refList, string queryList, string outputFile, kssd_para
 	double t5 = get_sec(); //cerr << "===================time of get total distance matrix file is: " << t5 - t4 << endl;
 	#endif
 }
+void new_command_union(string sketchFile, string outputFile, int threads){
+	vector<sketch_t> sketches;
+	if(!isSketchFile(sketchFile)){
+		err(errno, "ERROR: command_union, %s is not sketch file, need input sketch file\n", sketchFile.c_str());
+	}
+	#ifdef Timer_inner
+	double t0 = get_sec();
+	#endif
+
+	sketchInfo_t query_info;
+	FILE* fp_query = fopen(sketchFile.c_str(), "rb");
+	if(!fp_query){
+		fprintf(stderr, "ERROR: new_command_union(): cannot open the file: %s\n", sketchFile.c_str());
+		exit(1);
+	}
+	fread(&query_info, sizeof(sketchInfo_t), 1, fp_query);
+	bool use64 = query_info.half_k - query_info.drlevel > 8 ? true : false;
+	int query_num = query_info.genomeNumber;
+	int progress_bar_size = get_progress_bar_size(query_num);
+	int * genomeNameSize = new int[query_num];
+	int * hashSetSize = new int[query_num];
+	fread(genomeNameSize, sizeof(int), query_num, fp_query);
+	fread(hashSetSize, sizeof(int), query_num, fp_query);
+
+	int maxNameLength = 1000;
+	char * curName = new char[maxNameLength+1];
+	int maxHashSize = 1 << 24;
+	uint32_t * curPoint = new uint32_t[maxHashSize];
+	uint64_t * curPoint64 = new uint64_t[maxHashSize];
+	string totalName = sketchFile + " merged sketches";
+	vector<uint32_t> mergedArr;
+	vector<uint64_t> mergedArr64;
+
+	uint64_t remain_memory = get_total_system_memory();
+	uint64_t available_memory = remain_memory * 0.7;
+
+	size_t dictSize = use64 ? (1LLU << 4*(query_info.half_k-query_info.drlevel)) / 64 : (1LLU << 32) / 64;
+	size_t dict_memory = dictSize * sizeof(uint64_t);
+	int available_consumer = available_memory / dict_memory;
+	int consumer_num = std::min(available_consumer, threads-1);
+	if(use64)
+		cerr << "-----use hash64, and the dictSize is: " << dictSize << endl;
+	else
+		cerr << "-----not use hash64, and the dictSize is: " << dictSize << endl;
+	cerr << "the consumer_num is: " << consumer_num << endl;
+	uint64_t * dictArr[consumer_num];
+	#pragma omp parallel for num_threads(consumer_num)
+	for(int i = 0; i < consumer_num; i++){
+		dictArr[i] = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+		memset(dictArr[i], 0, dictSize * sizeof(uint64_t));
+	}
+
+	queue<sketch_t> sketch_queue;
+	int index = 0;
+	int produced_num = 0;
+	int solved_num = 0;
+	omp_lock_t queue_lock;
+	omp_lock_t vector_lock;
+	omp_init_lock(&queue_lock);
+	omp_init_lock(&vector_lock);
+	sketch_t s_arr[threads];
+
+	cerr << "the total genome number in sketch file is: " << query_num << endl;
+	#pragma omp parallel num_threads(consumer_num+1)
+	{
+		int tid = omp_get_thread_num();
+		if(tid == 0)//producer
+		{
+			for(index = 0; index < query_num; index++){
+				int curLength = genomeNameSize[index];
+				if(curLength > maxNameLength){
+					maxNameLength = curLength;
+					curName = new char[maxNameLength+1];
+				}
+				int nameLength = fread(curName, sizeof(char), curLength, fp_query);
+				string genomeName;
+				genomeName.assign(curName, curName + curLength);
+
+				sketch_t s;
+				s.fileName = genomeName;
+				s.id = index;
+				if(use64){
+					int curSize = hashSetSize[index];
+					if(curSize > maxHashSize){
+						maxHashSize = curSize;
+						curPoint64 = new uint64_t[maxHashSize];
+					}
+					int hashSize = fread(curPoint64, sizeof(uint64_t), curSize, fp_query);
+					if(hashSize != curSize){
+						cerr << "ERROR: new_command_union(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+						exit(1);
+					}
+					vector<uint64_t> curHashSet64(curPoint64, curPoint64 + curSize);
+					s.hashSet64 = curHashSet64;
+				}
+				else{
+					int curSize = hashSetSize[index];
+					if(curSize > maxHashSize){
+						maxHashSize = curSize;
+						curPoint = new uint32_t[maxHashSize];
+					}
+					int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp_query);
+					if(hashSize != curSize){
+						cerr << "ERROR: new_command_union(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+						exit(1);
+					}
+					vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
+					s.hashSet=curHashSet;
+				}
+				//#pragma omp critical
+				omp_set_lock(&queue_lock);
+				{
+					sketch_queue.push(s);
+					produced_num++;
+					//cerr << "DEBUG: index is: " << index << endl;
+				}
+				omp_unset_lock(&queue_lock);
+			}//end for
+		}
+		else//consumer
+		{
+			while(1){
+				omp_set_lock(&queue_lock);
+				{
+					if(sketch_queue.empty()){
+						//cerr << "DEBUG: sketch_queue is empty " << tid << endl;
+						omp_unset_lock(&queue_lock);
+						if(solved_num >= query_num)	break;
+						continue;
+					}
+					s_arr[tid] = sketch_queue.front();
+					sketch_queue.pop();
+				}
+				omp_unset_lock(&queue_lock);
+
+				sketch_t new_s;
+				new_s.fileName = s_arr[tid].fileName;
+				new_s.id = s_arr[tid].id;
+				if(use64){
+					for(int j = 0; j < s_arr[tid].hashSet64.size(); j++){
+						uint64_t curHash64 = s_arr[tid].hashSet64[j];
+						uint64_t dict_id = curHash64 / 64;
+						uint64_t dict_offset = 0x8000000000000000LLU >> (curHash64 % 64);
+						dictArr[tid-1][dict_id] |= dict_offset;
+					}
+
+				}
+				else{
+					for(int j = 0; j < s_arr[tid].hashSet.size(); j++){
+						uint32_t curHash = s_arr[tid].hashSet[j];
+						uint64_t dict_id = curHash / 64;
+						uint64_t dict_offset = 0x8000000000000000LLU >> (curHash % 64);
+						dictArr[tid-1][dict_id] |= dict_offset;
+					}
+				}
+				omp_set_lock(&vector_lock);
+				solved_num++;
+				if(solved_num % progress_bar_size == 0)	cerr << "finished: " << solved_num << endl;
+				omp_unset_lock(&vector_lock);
+			}
+		}
+	}
+
+	double tx = get_sec();
+	#pragma omp parallel for num_threads(threads) schedule(static)
+	for(int j = 0; j < dictSize; j++){
+		for(int i = 1; i < consumer_num; i++){
+			dictArr[0][j] |= dictArr[i][j];
+		}
+	}
+	double ty = get_sec();
+	cerr << "the test time is: " << ty - tx << endl;
+
+	#ifdef Timer_inner
+	double t1 = get_sec();
+		cerr << "-----time of multithreads generate the dictionary is: " << t1 - t0 << endl;
+	#endif
+
+	vector<sketch_t> mergedSketches;
+	sketch_t s;
+	s.id = 0;
+	s.fileName = totalName;
+	if(use64)
+	{
+		for(size_t i = 0; i < dictSize; i++){
+			if(dictArr[0][i]){
+				for(size_t j = 0; j < 64; j++){
+					if((0x8000000000000000LLU >> j) & dictArr[0][i]){
+						uint64_t hash = 64 * i + j;
+						mergedArr64.push_back(hash);
+					}
+				}
+			}
+		}
+		s.hashSet64 = mergedArr64;
+	}
+	else
+	{
+		for(int i = 0; i < dictSize; i++){
+			if(dictArr[0][i]){
+				for(int j = 0; j < 64; j++){
+					if((0x8000000000000000LLU >> j) & dictArr[0][i]){
+						uint32_t hash = 64 * i + j;
+						mergedArr.push_back(hash);
+					}
+				}
+			}
+		}
+		s.hashSet = mergedArr;
+	}
+	mergedSketches.push_back(s);
+
+	#ifdef Timer_inner
+	double t2 = get_sec();
+		cerr << "-----time of get hash array by dictionary is: " << t2 - t1 << endl;
+	#endif
+
+	query_info.genomeNumber = 1;
+	saveSketches(mergedSketches, query_info, outputFile);
+	#ifdef Timer_inner
+	double t3 = get_sec();
+	cerr << "-----time of save sketches is: " << t3 - t2 << endl;
+	#endif
+
+}
 
 //TODO:need to update hash uint32_t(uint64_t)
 void command_union(string sketchFile, string outputFile, int threads){
@@ -289,7 +514,7 @@ void command_union(string sketchFile, string outputFile, int threads){
 	sketchInfo_t info;
 	readSketches(sketches, info, sketchFile);
 	
-	string totalName = outputFile + " merge sketches";
+	string totalName = sketchFile + " merged sketches";
 	vector<uint32_t> mergedArr;
 
 	#ifdef Timer_inner

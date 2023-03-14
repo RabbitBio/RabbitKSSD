@@ -14,6 +14,24 @@ double get_sec()
 	return (double)tv.tv_sec + (double)tv.tv_usec/1000000;
 }
 
+uint64_t get_total_system_memory(){
+	uint64_t pages = sysconf(_SC_PHYS_PAGES);
+	uint64_t page_size = sysconf(_SC_PAGE_SIZE);
+	return pages * page_size;
+}
+
+int get_progress_bar_size(int total_num){
+	int coarse_size = total_num / 20;
+	int step = 10;
+	while(coarse_size / step){
+		step *= 10;
+	}
+	step /= 10;
+	int fine_size = (coarse_size/step + 1) * step;
+	return fine_size;
+}
+
+
 kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shuffled_dim){
 	// init kssd parameters
 	if(half_subk - drlevel < 3){

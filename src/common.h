@@ -3,6 +3,7 @@
 #include <iostream> 
 
 #include <sys/time.h>
+#include <unistd.h>
 
 typedef struct kssd_parameter
 {
@@ -44,8 +45,11 @@ static const uint32_t primer[25] =
 	536870909, 1073741789, 2147483647, 4294967291
 };
 
+
 double get_sec();
 unsigned int get_hashSize(int half_k, int drlevel);
 kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shuffled_dim);
+uint64_t get_total_system_memory();
+int get_progress_bar_size(int total_num);
 
 #endif
