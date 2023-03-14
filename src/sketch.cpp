@@ -1130,8 +1130,8 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 		if(use64){
 			int hashSize = fread(curPoint64, sizeof(uint64_t), curSize, fp);
 			if(hashSize != curSize){
-				cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
-				exit(0);
+				cerr << "ERROR: readSketches(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+				exit(1);
 			}
 			vector<uint64_t> curHashSet64(curPoint64, curPoint64 + curSize);
 			s.hashSet64=curHashSet64;
@@ -1139,7 +1139,7 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 		else{
 			int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp);
 			if(hashSize != curSize){
-				cerr << "error: the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+				cerr << "ERROR: readSketches(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
 				exit(0);
 			}
 			vector<uint32_t> curHashSet(curPoint, curPoint + curSize);

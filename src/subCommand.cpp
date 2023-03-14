@@ -362,13 +362,29 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 	cerr << "-----time of read reference sketch: " << refSketchFile << " is: " << t1 - t0 << endl;
 	#endif
 
-	size_t dictSize = (1LLU << 32) / 64;
-	uint64_t * dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
-	memset(dict, 0, dictSize * sizeof(uint64_t));
-	for(int i = 0; i < refSketches.size(); i++){
-		for(int j = 0; j < refSketches[i].hashSet.size(); j++){
-			uint32_t curHash = refSketches[i].hashSet[j];
-			dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
+	bool use64 = info.half_k - info.drlevel > 8 ? true : false;
+	uint64_t* dict;
+	if(use64){
+		size_t hash_dimention = 1LLU << (4 * (info.half_k - info.drlevel));
+		size_t dictSize = hash_dimention / 64;
+		dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+		memset(dict, 0, dictSize * sizeof(uint64_t));
+		for(int i = 0; i < refSketches.size(); i++){
+			for(int j = 0; j < refSketches[i].hashSet64.size(); j++){
+				uint64_t curHash = refSketches[i].hashSet64[j];
+				dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
+			}
+		}
+	}
+	else{
+		size_t dictSize = (1LLU << 32) / 64;
+		dict = (uint64_t*)malloc(dictSize * sizeof(uint64_t));
+		memset(dict, 0, dictSize * sizeof(uint64_t));
+		for(int i = 0; i < refSketches.size(); i++){
+			for(int j = 0; j < refSketches[i].hashSet.size(); j++){
+				uint32_t curHash = refSketches[i].hashSet[j];
+				dict[curHash/64] |= (0x8000000000000000LLU >> (curHash % 64));
+			}
 		}
 	}
 
@@ -403,6 +419,7 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 	char * curName = new char[maxNameLength+1];
 	int maxHashSize = 1 << 24;
 	uint32_t * curPoint = new uint32_t[maxHashSize];
+	uint64_t * curPoint64 = new uint64_t[maxHashSize];
 
 	FILE* fp_result = fopen(outputFile.c_str(), "w+");
 	if(!fp_result){
@@ -442,18 +459,37 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 				string genomeName;
 				genomeName.assign(curName, curName + curLength);
 
-				int curSize = hashSetSize[index];
-				if(curSize > maxHashSize){
-					maxHashSize = curSize;
-					curPoint = new uint32_t[maxHashSize];
-				}
-				int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp_query);
-
-				vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
 				sketch_t s;
 				s.fileName = genomeName;
 				s.id = index;
-				s.hashSet=curHashSet;
+				if(use64){
+					int curSize = hashSetSize[index];
+					if(curSize > maxHashSize){
+						maxHashSize = curSize;
+						curPoint64 = new uint64_t[maxHashSize];
+					}
+					int hashSize = fread(curPoint64, sizeof(uint64_t), curSize, fp_query);
+					if(hashSize != curSize){
+						cerr << "ERROR: new_command_sub(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+						exit(1);
+					}
+					vector<uint64_t> curHashSet64(curPoint64, curPoint64 + curSize);
+					s.hashSet64 = curHashSet64;
+				}
+				else{
+					int curSize = hashSetSize[index];
+					if(curSize > maxHashSize){
+						maxHashSize = curSize;
+						curPoint = new uint32_t[maxHashSize];
+					}
+					int hashSize = fread(curPoint, sizeof(uint32_t), curSize, fp_query);
+					if(hashSize != curSize){
+						cerr << "ERROR: new_command_sub(), the read hashNumber for a sketch is not equal to the saved hashNumber, exit" << endl;
+						exit(1);
+					}
+					vector<uint32_t> curHashSet(curPoint, curPoint + curSize);
+					s.hashSet=curHashSet;
+				}
 				//#pragma omp critical
 				omp_set_lock(&queue_lock);
 				{
@@ -480,20 +516,34 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 					sketch_queue.pop();
 				}
 				omp_unset_lock(&queue_lock);
-				
-				vector<uint32_t> newHashArr;
-				//cerr << "DEBUG: s.hashSet.size() is: " << s.hashSet.size() << endl;
-				for(int j = 0; j < s_arr[tid].hashSet.size(); j++){
-					uint32_t curHash = s_arr[tid].hashSet[j];
-					uint64_t isIn = dict[curHash/64] & (0x8000000000000000 >> (curHash % 64));
-					if(!isIn){
-						newHashArr.emplace_back(curHash);
-					}
-				}
 				sketch_t new_s;
 				new_s.fileName = s_arr[tid].fileName;
 				new_s.id = s_arr[tid].id;
-				new_s.hashSet = newHashArr;
+
+				if(use64){
+					vector<uint64_t> newHashArr64;
+					//cerr << "DEBUG: s.hashSet.size() is: " << s.hashSet.size() << endl;
+					for(int j = 0; j < s_arr[tid].hashSet64.size(); j++){
+						uint64_t curHash = s_arr[tid].hashSet64[j];
+						uint64_t isIn = dict[curHash/64] & (0x8000000000000000 >> (curHash % 64));
+						if(!isIn){
+							newHashArr64.emplace_back(curHash);
+						}
+					}
+					new_s.hashSet64 = newHashArr64;
+				}
+				else{
+					vector<uint32_t> newHashArr;
+					//cerr << "DEBUG: s.hashSet.size() is: " << s.hashSet.size() << endl;
+					for(int j = 0; j < s_arr[tid].hashSet.size(); j++){
+						uint32_t curHash = s_arr[tid].hashSet[j];
+						uint64_t isIn = dict[curHash/64] & (0x8000000000000000 >> (curHash % 64));
+						if(!isIn){
+							newHashArr.emplace_back(curHash);
+						}
+					}
+					new_s.hashSet = newHashArr;
+				}
 				omp_set_lock(&vector_lock);
 				{
 					//subSketches.push_back(new_s);
@@ -501,11 +551,19 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 					////cerr << "DEBUG: solved_num is: " << solved_num << endl;
 					const char * namePoint = new_s.fileName.c_str();
 					int curNameLength = new_s.fileName.length();
-					uint32_t * curPoint = new_s.hashSet.data();
-					int curHashSetSize = new_s.hashSet.size();
-					fwrite(namePoint, sizeof(char), curNameLength, fp_result);
-					fwrite(curPoint, sizeof(uint32_t), curHashSetSize, fp_result);
 					out_genomeNameSize[solved_num] = curNameLength;
+					fwrite(namePoint, sizeof(char), curNameLength, fp_result);
+					int curHashSetSize;
+					if(use64){
+						uint64_t * curPoint64 = new_s.hashSet64.data();
+						curHashSetSize = new_s.hashSet64.size();
+						fwrite(curPoint64, sizeof(uint64_t), curHashSetSize, fp_result);
+					}
+					else{
+						uint32_t * curPoint = new_s.hashSet.data();
+						curHashSetSize = new_s.hashSet.size();
+						fwrite(curPoint, sizeof(uint32_t), curHashSetSize, fp_result);
+					}
 					out_hashSetSize[solved_num] = curHashSetSize;
 					solved_num++;
 				}
@@ -518,6 +576,9 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 	fwrite(&query_info, sizeof(sketchInfo_t), 1, fp_result);
 	fwrite(out_genomeNameSize, sizeof(int), query_num, fp_result);
 	fwrite(out_hashSetSize, sizeof(int), query_num, fp_result);
+	delete [] curPoint;
+	delete [] curPoint64;
+	free(dict);
 
 	#ifdef Timer_inner
 	double t3 = get_sec();
@@ -526,10 +587,10 @@ void new_command_sub(string refSketchFile, string querySketchFile, string output
 
 	//saveSketches(subSketches, info, outputFile);
 
-	#ifdef Timer_inner
-	double t4 = get_sec();
-	cerr << "-----time of save sketches is: " << t4 - t3 << endl;
-	#endif
+	//#ifdef Timer_inner
+	//double t4 = get_sec();
+	//cerr << "-----time of save sketches is: " << t4 - t3 << endl;
+	//#endif
 
 }
 
