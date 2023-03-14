@@ -1068,8 +1068,8 @@ void saveSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string outputF
 		}
 	}
 	fclose(fp);
-	delete genomeNameSize;
-	delete hashSetSize;
+	delete [] genomeNameSize;
+	delete [] hashSetSize;
 
 }
 

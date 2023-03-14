@@ -735,6 +735,7 @@ void command_merge(string inputList, string outputFile, int threads){
 	vector<int> totalGenomeNameSize;
 	vector<int> totalHashSetSize;
 	sketchInfo_t resInfo;
+	bool use64;
 
 	vector<sketch_t> resSketches;
 	//readSketches(resSketches, resInfo, fileList[0]);
@@ -744,6 +745,7 @@ void command_merge(string inputList, string outputFile, int threads){
 		exit(1);
 	}
 	fread(&resInfo, sizeof(sketchInfo_t), 1, fp0);
+	use64 = resInfo.half_k - resInfo.drlevel > 8 ? true : false;
 	int sketchNumber0 = resInfo.genomeNumber;
 	int * genomeNameSize0 = new int[sketchNumber0];
 	int * hashSetSize0 = new int[sketchNumber0];
@@ -796,12 +798,17 @@ void command_merge(string inputList, string outputFile, int threads){
 		for(int i = 0; i < sketchNumber; i++){
 			const char * namePoint = curSketches[i].fileName.c_str();
 			fwrite(namePoint, sizeof(char),curSketches[i].fileName.length(), fp);
-			uint32_t * curPoint = curSketches[i].hashSet.data();
-			fwrite(curPoint, sizeof(uint32_t),curSketches[i].hashSet.size(), fp);
+			if(use64){
+				uint64_t * curPoint64 = curSketches[i].hashSet64.data();
+				fwrite(curPoint64, sizeof(uint64_t),curSketches[i].hashSet64.size(), fp);
+			}
+			else{
+				uint32_t * curPoint = curSketches[i].hashSet.data();
+				fwrite(curPoint, sizeof(uint32_t),curSketches[i].hashSet.size(), fp);
+			}
 		}
 	}
 	fclose(fp);
-
 }
 	
 
