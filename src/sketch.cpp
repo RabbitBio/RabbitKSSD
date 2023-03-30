@@ -98,7 +98,7 @@ bool isFastaGZList(string inputList){
 	bool res = true;
 	string fileName;
 	while(getline(ifs, fileName)){
-		int end_index0 = fileName.find_last_of('.');
+		auto end_index0 = fileName.find_last_of('.');
 		if(end_index0 == string::npos){
 			res = false;
 			break;
@@ -110,7 +110,7 @@ bool isFastaGZList(string inputList){
 			break;
 		}
 		string prefix0 = fileName.substr(0, end_index0);
-		int end_index1 = prefix0.find_last_of('.');
+		auto end_index1 = prefix0.find_last_of('.');
 		if(end_index1 == string::npos){
 			res = false;
 			break;
@@ -132,7 +132,7 @@ bool isFastqGZList(string inputList){
 	bool res = true;
 	string fileName;
 	while(getline(ifs, fileName)){
-		int end_index0 = fileName.find_last_of('.');
+		auto end_index0 = fileName.find_last_of('.');
 		if(end_index0 == string::npos){
 			res = false;
 			break;
@@ -144,7 +144,7 @@ bool isFastqGZList(string inputList){
 			break;
 		}
 		string prefix0 = fileName.substr(0, end_index0);
-		int end_index1 = prefix0.find_last_of('.');
+		auto end_index1 = prefix0.find_last_of('.');
 		if(end_index1 == string::npos){
 			res = false;
 			break;
@@ -161,7 +161,7 @@ bool isFastqGZList(string inputList){
 }
 
 bool isSketchFile(string inputFile){
-	int startPos = inputFile.find_last_of('.');
+	auto startPos = inputFile.find_last_of('.');
 	if(startPos == string::npos) return false;
 	string suffixName = inputFile.substr(startPos+1);
 	if(suffixName == "sketch")	return true;
@@ -172,16 +172,16 @@ bool isSketchFile(string inputFile){
 //void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, robin_hood::unordered_map<uint32_t, int>& shuffled_map, vector<uint32_t>& hashArr){
 void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, bool use64, robin_hood::unordered_map<uint32_t, int>& shuffled_map, robin_hood::unordered_set<uint32_t>& hashValueSet, robin_hood::unordered_set<uint64_t>& hashValueSet64){
 
-	int half_k = parameter.half_k;
+	//int half_k = parameter.half_k;
 	int drlevel = parameter.drlevel;
 	int rev_add_move = parameter.rev_add_move;
 	int half_outctx_len = parameter.half_outctx_len;
-	int * shuffled_dim = parameter.shuffled_dim;
+	//int * shuffled_dim = parameter.shuffled_dim;
 	int dim_start = parameter.dim_start;
-	int dim_end = parameter.dim_end;
+	//int dim_end = parameter.dim_end;
 	int kmer_size = parameter.kmer_size;
-	uint32_t hashSize = parameter.hashSize;
-	int hashLimit = parameter.hashLimit;
+	//uint32_t hashSize = parameter.hashSize;
+	//int hashLimit = parameter.hashLimit;
 	uint64_t tupmask = parameter.tupmask;
 	uint64_t undomask0 = parameter.undomask0;
 	uint64_t undomask1 = parameter.undomask1;
@@ -196,8 +196,8 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, bo
 			string name = r.name;
 
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
-			int keyCount = 0;
-			uint64_t base = 1;
+			//int keyCount = 0;
+			int base = 1;
 
 			for(int i = 0; i < length; i++){
 				char ch = r.seq[i];
@@ -239,16 +239,16 @@ void consumer_fasta_task(FXReader<FA> &m_reader, kssd_parameter_t& parameter, bo
 
 void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter, bool use64, robin_hood::unordered_map<uint32_t, int>& shuffled_map, int& leastQual, int& leastNumKmer, robin_hood::unordered_map<uint32_t, int>& hashValueMap, robin_hood::unordered_map<uint64_t, int>& hashValueMap64){
 
-	int half_k = parameter.half_k;
+	//int half_k = parameter.half_k;
 	int drlevel = parameter.drlevel;
 	int rev_add_move = parameter.rev_add_move;
 	int half_outctx_len = parameter.half_outctx_len;
-	int * shuffled_dim = parameter.shuffled_dim;
+	//int * shuffled_dim = parameter.shuffled_dim;
 	int dim_start = parameter.dim_start;
-	int dim_end = parameter.dim_end;
+	//int dim_end = parameter.dim_end;
 	int kmer_size = parameter.kmer_size;
-	uint32_t hashSize = parameter.hashSize;
-	int hashLimit = parameter.hashLimit;
+	//uint32_t hashSize = parameter.hashSize;
+	//int hashLimit = parameter.hashLimit;
 	uint64_t tupmask = parameter.tupmask;
 	uint64_t undomask0 = parameter.undomask0;
 	uint64_t undomask1 = parameter.undomask1;
@@ -271,8 +271,8 @@ void consumer_fastq_task(FXReader<FQ_SE> &m_reader, kssd_parameter_t& parameter,
 			//fprintf(fpTmp, "%s\n", r.seq.c_str());
 
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
-			int keyCount = 0;
-			uint64_t base = 1;
+			//int keyCount = 0;
+			int base = 1;
 
 			for(int i = 0; i < length; i++){
 				char ch = r.seq[i];
@@ -326,8 +326,8 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	int dim_start = parameter.dim_start;
 	int dim_end = parameter.dim_end;
 	int kmer_size = parameter.kmer_size;
-	uint32_t hashSize = parameter.hashSize;
-	int hashLimit = parameter.hashLimit;
+	//uint32_t hashSize = parameter.hashSize;
+	//int hashLimit = parameter.hashLimit;
 	uint64_t tupmask = parameter.tupmask;
 	uint64_t undomask0 = parameter.undomask0;
 	uint64_t undomask1 = parameter.undomask1;
@@ -366,7 +366,7 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	uint64_t limitSize = totalSize / numThreads;
 	vector<string> bigFastaArr;
 	vector<string> smallFileArr;
-	for(int i = 0; i < fileList.size(); i++){
+	for(size_t i = 0; i < fileList.size(); i++){
 		if(fileList[i].fileSize > limitSize)
 			bigFastaArr.push_back(fileList[i].fileName);
 		else
@@ -394,7 +394,7 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		cerr << "the numGroup for sketching fasta is: " << numGroup << endl;
 		cerr << "the numConsumer for fasta is: " << numConsumer << endl;
 		#pragma omp parallel for num_threads(numGroup)
-		for(int i = 0; i < bigFastaArr.size(); i++){
+		for(size_t i = 0; i < bigFastaArr.size(); i++){
 			//vector<uint32_t> hashArr[numConsumer];
 			robin_hood::unordered_set<uint32_t> hashValueSets[numConsumer];
 			robin_hood::unordered_set<uint64_t> hashValueSet64s[numConsumer];
@@ -449,10 +449,13 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		cerr << "finished the sketching of the big fasta genomes" << endl;
 	}
 
+	int small_file_number = smallFileArr.size();
+	int process_bar_size = get_progress_bar_size(small_file_number);
+	cerr << "=====total small files: " << small_file_number << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int t = 0; t <smallFileArr.size(); t++)
+	for(size_t t = 0; t <smallFileArr.size(); t++)
 	{
-		int tid = omp_get_thread_num();
+		//int tid = omp_get_thread_num();
 		sketch_t tmpSketch;
 		gzFile fp1;
 		kseq_t * ks1;
@@ -482,15 +485,13 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				comment = ks1->comment.s;
 			//char * sequence = ks1->seq.s;
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
-			int keyCount = 0;
-			uint64_t base = 1;
+			int base = 1;
 			//cerr << "the length is: " << length << endl;
 			//slide window to generate k-mers and get hashes
 			for(int i = 0; i < length; i++)
 			{
 				//char ch = sequence[i];
 				char ch = ks1->seq.s[i];
-				int curCh = int(ch);
 				int basenum = BaseMap[(int)ch];
 				if(basenum != -1)
 				{
@@ -557,7 +558,7 @@ bool sketchFastaFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		#pragma omp critical
 		{
 			sketches.push_back(tmpSketch);
-			if(t % 10000 == 0){
+			if(t % process_bar_size == 0){
 				cerr << "finshed sketching: " << t << " genomes" << endl;
 			}
 		}
@@ -603,8 +604,8 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	int dim_start = parameter.dim_start;
 	int dim_end = parameter.dim_end;
 	int kmer_size = parameter.kmer_size;
-	uint32_t hashSize = parameter.hashSize;
-	int hashLimit = parameter.hashLimit;
+	//uint32_t hashSize = parameter.hashSize;
+	//int hashLimit = parameter.hashLimit;
 	uint64_t tupmask = parameter.tupmask;
 	uint64_t undomask0 = parameter.undomask0;
 	uint64_t undomask1 = parameter.undomask1;
@@ -643,7 +644,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	uint64_t limitSize = totalSize / numThreads;
 	vector<string> bigFastqArr;
 	vector<string> smallFileArr;
-	for(int i = 0; i < fileList.size(); i++){
+	for(size_t i = 0; i < fileList.size(); i++){
 		if(fileList[i].fileSize > limitSize)
 			bigFastqArr.push_back(fileList[i].fileName);
 		else
@@ -672,16 +673,12 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		cerr << "the numGroup for sketching fastq is: " << numGroup << endl;
 		cerr << "the numConsumer for fastq is: " << numConsumer << endl;
 		#pragma omp parallel for num_threads(numGroup)
-		for(int i = 0; i < bigFastqArr.size(); i++){
+		for(size_t i = 0; i < bigFastqArr.size(); i++){
 			//vector<uint32_t> hashArr[numConsumer];
 			robin_hood::unordered_map<uint32_t, int> hashValueMaps[numConsumer];
 			robin_hood::unordered_map<uint64_t, int> hashValueMaps64[numConsumer];
 			FXReader<FQ_SE> m_reader(bigFastqArr[i]);
 			std::thread ** threads =new std::thread*[numConsumer];
-			int thread_idArr[numConsumer];
-			for(int t = 0; t < numConsumer; t++){
-				thread_idArr[t] = t;
-			}
 			for(int t = 0; t < numConsumer; t++){
 				threads[t] = new std::thread(std::bind(consumer_fastq_task, std::ref(m_reader), std::ref(parameter), use64, std::ref(shuffled_map), std::ref(leastQual), std::ref(leastNumKmer), std::ref(hashValueMaps[t]), std::ref(hashValueMaps64[t]))); 
 			}
@@ -740,10 +737,12 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 	}
  
 
+	int small_file_number = smallFileArr.size();
+	int process_bar_size = get_progress_bar_size(small_file_number);
+	cerr << "=====total small files: " << small_file_number << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int t = 0; t <smallFileArr.size(); t++)
+	for(size_t t = 0; t <smallFileArr.size(); t++)
 	{
-		int tid = omp_get_thread_num();
 		sketch_t tmpSketch;
 		gzFile fp1;
 		kseq_t * ks1;
@@ -776,15 +775,13 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 				quality = ks1->qual.s;
 			//char * sequence = ks1->seq.s;
 			uint64_t tuple = 0LLU, rvs_tuple = 0LLU, uni_tuple, dr_tuple, pfilter;
-			int keyCount = 0;
-			uint64_t base = 1;
+			int base = 1;
 			//cerr << "the length is: " << length << endl;
 			//slide window to generate k-mers and get hashes
 			for(int i = 0; i < length; i++)
 			{
 				//char ch = sequence[i];
 				char ch = ks1->seq.s[i];
-				int curCh = int(ch);
 				int basenum = BaseMap[(int)ch];
 				if(basenum != -1 && quality[i] >= leastQual)
 				{
@@ -860,7 +857,7 @@ bool sketchFastqFile(string inputFile, bool isQuery, int numThreads, kssd_parame
 		#pragma omp critical
 		{
 			sketches.push_back(tmpSketch);
-			if(t % 10000 == 0){
+			if(t % process_bar_size == 0){
 				cerr << "finshed sketching: " << t << " genomes" << endl;
 			}
 		}
@@ -906,15 +903,15 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFi
 
 	if(use64){
 		double t0 = get_sec();
-		size_t dict_size = (1LLU << (4*(half_k-drlevel))) / 64;
+		//size_t dict_size = (1LLU << (4*(half_k-drlevel))) / 64;
 		//uint64_t* dict = (uint64_t*)malloc(dict_size * sizeof(uint64_t));
 		//memset(dict, 0, dict_size * sizeof(uint64_t));
 		robin_hood::unordered_map<uint64_t, vector<uint32_t>> hash_map_arr;
 		//std::unordered_map<uint64_t, vector<uint32_t>> hash_map_arr;
 		//std::map<uint64_t, vector<uint32_t>> hash_map_arr;
-		for(int i = 0; i < sketches.size(); i++){
+		for(size_t i = 0; i < sketches.size(); i++){
 			//#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-			for(int j = 0; j < sketches[i].hashSet64.size(); j++){
+			for(size_t j = 0; j < sketches[i].hashSet64.size(); j++){
 				uint64_t cur_hash = sketches[i].hashSet64[j];
 				//cerr << cur_hash << endl;
 				//dict[cur_hash/64] |= (0x8000000000000000LLU >> (cur_hash % 64));
@@ -941,12 +938,9 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFi
 			cerr << "ERROR: transSketches, cannot open dictFile: " << dictFile << endl;
 			exit(1);
 		}
-		int cur_id = 0;
-		int cur_start = 0;
-		int cur_end = 0;
+		size_t cur_id = 0;
 		for(auto x : hash_map_arr){
 			hash_arr[cur_id] = x.first;
-			cur_end = cur_start + x.second.size();
 			fwrite(x.second.data(), sizeof(uint32_t), x.second.size(), fp_dict);
 			hash_size_arr[cur_id] = x.second.size();
 			total_size += x.second.size();
@@ -982,7 +976,7 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFi
 		uint32_t* offsetArr = (uint32_t*)calloc(hashSize, sizeof(uint32_t));
 
 		cerr << "the hashSize is: " << hashSize << endl;
-		for(int i = 0; i < sketches.size(); i++){
+		for(size_t i = 0; i < sketches.size(); i++){
 			#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 			for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
 				uint32_t hash = sketches[i].hashSet[j];
@@ -996,7 +990,7 @@ void transSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string dictFi
 
 		FILE * fp0 = fopen(dictFile.c_str(), "w+");
 		uint64_t totalIndex = 0;
-		for(int hash = 0; hash < hashSize; hash++){
+		for(size_t hash = 0; hash < hashSize; hash++){
 			offsetArr[hash] = 0;
 			if(hashMapId[hash].size() != 0){
 				fwrite(hashMapId[hash].data(), sizeof(uint32_t), hashMapId[hash].size(), fp0);
@@ -1079,15 +1073,19 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 		fprintf(stderr, "ERROR: readSketches(), cannot open the file: %s\n", inputFile.c_str());
 		exit(1);
 	}
-	fread(&info, sizeof(sketchInfo_t), 1, fp);
+	int read_sketch_info = fread(&info, sizeof(sketchInfo_t), 1, fp);
 	bool use64 = info.half_k - info.drlevel > 8 ? true : false;
 	int sketchNumber = info.genomeNumber;
 	//fread(&sketchNumber, sizeof(int), 1, fp);
 	//cerr << "sketchNumber is: " << sketchNumber << endl;
 	int * genomeNameSize = new int[sketchNumber];
 	int * hashSetSize = new int[sketchNumber];
-	fread(genomeNameSize, sizeof(int), sketchNumber, fp);
-	fread(hashSetSize, sizeof(int), sketchNumber, fp);
+	int read_genome_name_size = fread(genomeNameSize, sizeof(int), sketchNumber, fp);
+	int read_hash_set_size = fread(hashSetSize, sizeof(int), sketchNumber, fp);
+	if(read_sketch_info != 1 || read_genome_name_size != sketchNumber || read_hash_set_size != sketchNumber){
+		cerr << "ERROR: readSketches(), mismatched read sketch_info, genome_name_sizse, hash_set_size" << endl;
+		exit(1);
+	}
 
 	//uint64_t totalNumber = 0;
 	//uint64_t totalLength = 0;
@@ -1157,19 +1155,19 @@ void readSketches(vector<sketch_t>& sketches, sketchInfo_t& info, string inputFi
 
 void printInfos(vector<sketch_t>& sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
-	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
-	for(int i = 0; i < sketches.size(); i++){
-		fprintf(fp, "%s\t%d\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
+	fprintf(fp, "the number of sketches are: %lu\n", sketches.size());
+	for(size_t i = 0; i < sketches.size(); i++){
+		fprintf(fp, "%s\t%lu\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
 	}
 	fclose(fp);
 }
 
 void printSketches(vector<sketch_t>& sketches, string outputFile){
 	FILE * fp = fopen(outputFile.c_str(), "w+");
-	fprintf(fp, "the number of sketches are: %d\n", sketches.size());
-	for(int i = 0; i < sketches.size(); i++){
-		fprintf(fp, "%s\t%d\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
-		for(int j = 0; j < sketches[i].hashSet.size(); j++){
+	fprintf(fp, "the number of sketches are: %lu\n", sketches.size());
+	for(size_t i = 0; i < sketches.size(); i++){
+		fprintf(fp, "%s\t%lu\n", sketches[i].fileName.c_str(), sketches[i].hashSet.size());
+		for(size_t j = 0; j < sketches[i].hashSet.size(); j++){
 			fprintf(fp, "%u\t", sketches[i].hashSet[j]);
 			if(j % 10 == 9) fprintf(fp, "\n");
 		}
@@ -1189,7 +1187,7 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 		exit(1);
 	}
 	co_dstat_t curStat;
-	fread(&curStat, sizeof(co_dstat_t), 1, fp_stat);
+	int read_cur_stat = fread(&curStat, sizeof(co_dstat_t), 1, fp_stat);
 	int shuf_id = curStat.shuf_id;
 	int infile_num = curStat.infile_num;
 	int kmerSize = curStat.kmerlen;
@@ -1211,22 +1209,29 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	//cerr << "all_ctx_ct is: " << all_ctx_ct << endl;
 
 	uint32_t* tmp_ctx_ct = (uint32_t*)malloc(sizeof(uint32_t) * infile_num);
-	fread(tmp_ctx_ct, sizeof(uint32_t), infile_num, fp_stat);
+	int read_tmp_ctx_ct = fread(tmp_ctx_ct, sizeof(uint32_t), infile_num, fp_stat);
 	char ** tmpName = (char**)malloc(infile_num *sizeof(char*));
 	for(int i = 0; i < infile_num; i++){
 		tmpName[i] = (char*)malloc(PATHLEN * sizeof(char));
-		fread(tmpName[i], sizeof(char), PATHLEN, fp_stat);
+		int read_path_length = fread(tmpName[i], sizeof(char), PATHLEN, fp_stat);
+		if(read_path_length == 0){
+			cerr << "Warning: convertSketch(), the read path length is zero " << endl;
+		}
 	}
 	fclose(fp_stat);
 
 	size_t* cbdcoindex = (size_t*)malloc(sizeof(size_t) * (infile_num+1));
 	FILE* fp_index = fopen(indexFile.c_str(), "rb");
 	if(!fp_index){
-		cerr << "cannot open: " << indexFile << endl;
+		cerr << "ERROR: convertSketch(), cannot open: " << indexFile << endl;
 		exit(1);
 	}
-	fread(cbdcoindex, sizeof(size_t), infile_num + 1, fp_index);
+	int read_cbdcoindex = fread(cbdcoindex, sizeof(size_t), infile_num + 1, fp_index);
 	fclose(fp_index);
+	if(read_cur_stat != 1 || read_tmp_ctx_ct != infile_num || read_cbdcoindex != infile_num+1){
+		cerr << "ERROR: convertSketch(), mismatched read cur_stat, tmp_ctx_ct, and cbdcoindex" << endl;
+		exit(1);
+	}
 
 	FILE* fp_sketch = fopen(sketchFile.c_str(), "rb");
 	if(!fp_sketch){
@@ -1234,7 +1239,6 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 		exit(1);
 	}
 
-	int fd;
 	struct stat statbuf;
 	stat(sketchFile.c_str(), &statbuf);
 	size_t fileSize = statbuf.st_size;
@@ -1246,7 +1250,7 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 	//cerr << "the fileSize is: " << fileSize << endl;
 	//cerr << "the hashNumber is: " << hashNumber << endl;
 
-	int maxArrSize = 1 << 24;
+	size_t maxArrSize = 1 << 24;
 	uint32_t* curSketchArr = (uint32_t*)malloc(maxArrSize * sizeof(uint32_t));
 	for(int i = 0; i < infile_num; i++){
 		string curFileName = tmpName[i];
@@ -1257,7 +1261,11 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 			curSketchArr = (uint32_t*)malloc(maxArrSize * sizeof(uint32_t));
 		}
 		vector<uint32_t> curHashArr;
-		fread(curSketchArr, sizeof(uint32_t), curHashNumber, fp_sketch);
+		size_t read_cur_sketch_arr = fread(curSketchArr, sizeof(uint32_t), curHashNumber, fp_sketch);
+		if(read_cur_sketch_arr != curHashNumber){
+			cerr << "ERROR: transSketches(), mismatched read cur_sketch_arr" << endl;
+			exit(1);
+		}
 		for(size_t k = 0; k < curHashNumber; k++){
 			curHashArr.emplace_back(curSketchArr[k]);
 		}

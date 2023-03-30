@@ -15,7 +15,7 @@
 #include "robin_hood.h"
 
 int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3);
-int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b);
+int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, uint64_t &a, uint64_t &b);
 setResult_t getJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2);
 
@@ -28,35 +28,29 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 	string dictFile = refSketchOut + ".dict";
 	bool use64 = info.half_k - info.drlevel > 8 ? true : false;
 	robin_hood::unordered_map<uint64_t, vector<uint32_t>> hash_map_arr;
-	uint32_t* sketchSizeArr;
-	size_t* offset;
-	uint32_t* indexArr;
+	uint32_t* sketchSizeArr = NULL;
+	size_t* offset = NULL;
+	uint32_t* indexArr = NULL;
 	//uint64_t* dict;
 	if(use64)
 	{
-		cerr << "use 64 in index_tridist() " << endl;
-		//string filterFile = indexFile + ".filter";
-		//FILE* fp_filter = fopen(filterFile.c_str(), "rb");
-		//if(!fp_filter){
-		//	cerr << "ERROR: index_dist(), cannot open filter file: " << filterFile << endl;
-		//	exit(1);
-		//}
-		//size_t dict_size = (1LLU << (4*(info.half_k-info.drlevel))) / 64;
-		//dict = (uint64_t*)malloc(dict_size * sizeof(uint64_t));
-		//fread(dict, sizeof(uint64_t), dict_size, fp_filter);
-		//fclose(fp_filter);
-
+		cerr << "-----use hash64 in index_tridist() " << endl;
 		size_t hash_number;
 		FILE* fp_index = fopen(indexFile.c_str(), "rb");
 		if(!fp_index){
 			cerr << "ERROR: index_tridist(), cannot open index file: " << indexFile << endl;
 			exit(1);
 		}
-		fread(&hash_number, sizeof(size_t), 1, fp_index);
-		uint64_t * hash_arr = (uint64_t*)malloc(hash_number * sizeof(uint64_t));
-		uint32_t * hash_size_arr = (uint32_t*)malloc(hash_number * sizeof(uint32_t));
-		fread(hash_arr, sizeof(uint64_t), hash_number, fp_index);
-		fread(hash_size_arr, sizeof(uint32_t), hash_number, fp_index);
+		int read_hash_num = fread(&hash_number, sizeof(size_t), 1, fp_index);
+		uint64_t * hash_arr = new uint64_t[hash_number];
+		uint32_t * hash_size_arr = new uint32_t[hash_number];
+		size_t read_hash_arr = fread(hash_arr, sizeof(uint64_t), hash_number, fp_index);
+		size_t read_hash_size_arr = fread(hash_size_arr, sizeof(uint32_t), hash_number, fp_index);
+		if(read_hash_num != 1 || read_hash_arr != hash_number || read_hash_size_arr != hash_number){
+			cerr << "ERROR: index_tridist(), error read hash_number, hash_arr, and hash_size_arr" << endl;
+			exit(1);
+		}
+		
 		fclose(fp_index);
 
 		FILE* fp_dict = fopen(dictFile.c_str(), "rb");
@@ -66,13 +60,13 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 		}
 		uint32_t max_hash_size = 1LLU << 24;
 		uint32_t* cur_point = new uint32_t[max_hash_size];
-		for(int i = 0; i < hash_number; i++){
+		for(size_t i = 0; i < hash_number; i++){
 			uint32_t cur_hash_size = hash_size_arr[i];
 			if(cur_hash_size > max_hash_size){
 				max_hash_size = cur_hash_size;
 				cur_point = new uint32_t[max_hash_size];
 			}
-			int hash_size = fread(cur_point, sizeof(uint32_t), cur_hash_size, fp_dict);
+			uint32_t hash_size = fread(cur_point, sizeof(uint32_t), cur_hash_size, fp_dict);
 			if(hash_size != cur_hash_size){
 				cerr << "ERROR: index_tridist(), the read hash number is not equal to the saved hash number information" << endl;
 				exit(1);
@@ -82,31 +76,36 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 			hash_map_arr.insert({cur_hash, cur_genome_arr});
 		}
 		delete [] cur_point;
+		delete [] hash_arr;
+		delete [] hash_size_arr;
 		fclose(fp_dict);
 	}
 	else
 	{
+		cerr << "-----not use hash64 in index_tridist() " << endl;
 		size_t hashSize;
 		uint64_t totalIndex;
 		FILE * fp_index = fopen(indexFile.c_str(), "rb");
 		if(!fp_index){
-			cerr << "error opening the index sketch file: " << indexFile << endl;
+			cerr << "ERROR: index_tridist(), cannot open the index sketch file: " << indexFile << endl;
 			exit(1);
 		}
-		fread(&hashSize, sizeof(size_t), 1, fp_index);
-		fread(&totalIndex, sizeof(uint64_t), 1, fp_index);
-		sketchSizeArr = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
-		fread(sketchSizeArr, sizeof(uint32_t), hashSize, fp_index);
+		int read_hash_size = fread(&hashSize, sizeof(size_t), 1, fp_index);
+		int read_total_index = fread(&totalIndex, sizeof(uint64_t), 1, fp_index);
+		//sketchSizeArr = (uint32_t*)malloc(hashSize * sizeof(uint32_t));
+		sketchSizeArr = new uint32_t[hashSize];
+		size_t read_sketch_size_arr = fread(sketchSizeArr, sizeof(uint32_t), hashSize, fp_index);
 
-		offset = (size_t*)malloc(hashSize * sizeof(size_t));
+		//offset = (size_t*)malloc(hashSize * sizeof(size_t));
+		offset = new size_t[hashSize];
 		uint64_t totalHashNumber = 0;
-		for(int i = 0; i < hashSize; i++){
+		for(size_t i = 0; i < hashSize; i++){
 			totalHashNumber += sketchSizeArr[i];
 			offset[i] = sketchSizeArr[i];
 			if(i > 0) offset[i] += offset[i-1];
 		}
 		if(totalHashNumber != totalIndex){
-			cerr << "error of the total hash number" << endl;
+			cerr << "ERROR: index_tridist(), mismatched total hash number" << endl;
 			exit(1);
 		}
 		fclose(fp_index);
@@ -116,13 +115,18 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 		//cerr << "totalHashNumber is: " << totalHashNumber << endl;
 		//cerr << "offset[n-1] is: " << offset[hashSize-1] << endl;;
 
-		indexArr = (uint32_t*)malloc(totalHashNumber * sizeof(uint32_t));
+		//indexArr = (uint32_t*)malloc(totalHashNumber * sizeof(uint32_t));
+		indexArr = new uint32_t[totalHashNumber];
 		FILE * fp_dict = fopen(dictFile.c_str(), "rb");
 		if(!fp_dict){
-			cerr << "error opening the dictionary sketch file: " << dictFile << endl;
+			cerr << "ERROR: index_tridist(), cannot open the dictionary sketch file: " << dictFile << endl;
 			exit(1);
 		}
-		fread(indexArr, sizeof(uint32_t), totalHashNumber, fp_dict);
+		size_t read_index_arr = fread(indexArr, sizeof(uint32_t), totalHashNumber, fp_dict);
+		if(read_hash_size != 1 || read_total_index != 1 || read_sketch_size_arr != hashSize || read_index_arr != totalHashNumber){
+			cerr << "ERROR: index_tridist(), error read hash_size, total_index, sketch_size_arr, index_arr" << endl;
+			exit(1);
+		}
 	}
 
 	#ifdef Timer
@@ -135,11 +139,15 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 	vector<FILE*> fpIndexArr;
 	vector<string> dist_file_list;
 	vector<string> dist_index_list;
-	vector<int*> intersectionArr;
+	//vector<int*> intersectionArr;
+	int** intersectionArr = new int*[numThreads];
 	
 	string folderPath = outputFile + ".dir";
 	string command0 = "mkdir -p " + folderPath;
-	system(command0.c_str());
+	int status = system(command0.c_str());
+	if(!status){
+		cerr << "success create: " << folderPath << endl;
+	}
 
 	for(int i = 0; i < numThreads; i++)
 	{
@@ -153,16 +161,19 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 		FILE * fp1 = fopen(tmpIndexName.c_str(), "w+");
 		fpIndexArr.push_back(fp1);
 
-		int * arr = (int*)malloc(numRef * sizeof(int));
-		intersectionArr.push_back(arr);
+		//int * arr = (int*)malloc(numRef * sizeof(int));
+		//int* arr = new int[numRef];
+		//intersectionArr.push_back(arr);
+		intersectionArr[i] = new int[numRef];
 	}
 	
 	//cerr << "before generate the intersection " << endl;
 	
+	int progress_bar_size = get_progress_bar_size(numRef);
 	cerr << "=====total: " << numRef << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
 	for(size_t i = 0; i < numRef; i++){
-		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
+		if(i % progress_bar_size == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
 		fprintf(fpIndexArr[tid], "%s\t%s\n", sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef * sizeof(int));
@@ -242,7 +253,7 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 					//fprintf(fpArr[tid], " %s\t%s\t%d|%d|%d\t%lf\t%lf\n", sketches[j].fileName.c_str(), sketches[i].fileName.c_str(), common, size0, size1, containment, AafD);
 			}
 		}
-		fprintf(fpArr[tid], strBuf.c_str());
+		fprintf(fpArr[tid], "%s", strBuf.c_str());
 		strBuf = "";
 	}
 
@@ -253,6 +264,7 @@ void index_tridist(vector<sketch_t>& sketches, sketchInfo_t& info, string refSke
 	{
 		fclose(fpArr[i]);
 		fclose(fpIndexArr[i]);
+		delete [] intersectionArr[i];
 	}
 	//cerr << "finished fpArr fclose" << endl;
 
@@ -334,7 +346,7 @@ void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, doub
 	
 	double t00 = get_sec();
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < sketches.size(); i++){
+	for(size_t i = 0; i < sketches.size(); i++){
 		std::sort(sketches[i].hashSet.begin(), sketches[i].hashSet.end());
 	}
 
@@ -351,11 +363,11 @@ void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, doub
 		fpArr.push_back(fp0);
 	}
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < sketches.size(); i++)
+	for(size_t i = 0; i < sketches.size(); i++)
 	{
 		//if(i % 300 == 0) cerr << "finish: " << i << endl;
 		int tid = omp_get_thread_num();
-		for(int j = i+1; j < sketches.size(); j++)
+		for(size_t j = i+1; j < sketches.size(); j++)
 		{
 			//setResult_t tmpResult = getJaccard(sketches[i].hashSet, sketches[j].hashSet);
 			setResult_t tmpResult = vgetJaccard(sketches[i].hashSet, sketches[j].hashSet);
@@ -383,7 +395,7 @@ void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, doub
 	double t1 = get_sec();
 	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
 
-	struct stat cof_stat;
+	//struct stat cof_stat;
 	FILE * cofp;
 	FILE * com_cofp = fopen(outputFile.c_str(), "w");
 	//fprintf(fpArr[tid], " %s\t%s\t%d\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, denom, jaccard, mashD);
@@ -414,7 +426,7 @@ void tri_dist(vector<sketch_t>& sketches, string outputFile, int kmer_size, doub
 
 }
 
-void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string refSketchOut, vector<sketch_t>& query_sketches, string outputFile, int kmer_size, double maxDist, int maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
+void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string refSketchOut, vector<sketch_t>& query_sketches, string outputFile, int kmer_size, double maxDist, uint64_t maxNeighbor, bool isNeighbor, int isContainment, int numThreads){
 
 	#ifdef Timer
 	double t0 = get_sec();
@@ -424,34 +436,27 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 	bool use64 = ref_info.half_k - ref_info.drlevel > 8 ? true : false;
 	robin_hood::unordered_map<uint64_t, vector<uint32_t>> hash_map_arr;
 	//uint64_t * dict;
-	uint32_t* refSketchSizeArr;
-	size_t* refOffset;
-	int* refIndexArr;
+	uint32_t* refSketchSizeArr = NULL;
+	size_t* refOffset = NULL;
+	int* refIndexArr = NULL;
 	if(use64){
 		cerr << "use 64 in index_dist() " << endl;
-		//string filterFile = refIndexFile + ".filter";
-		//FILE* fp_filter = fopen(filterFile.c_str(), "rb");
-		//if(!fp_filter){
-		//	cerr << "ERROR: index_dist(), cannot open filter file: " << filterFile << endl;
-		//	exit(1);
-		//}
-		//size_t dict_size = (1LLU << (4*(ref_info.half_k-ref_info.drlevel))) / 64;
-		//dict = (uint64_t*)malloc(dict_size * sizeof(uint64_t));
-		//fread(dict, sizeof(uint64_t), dict_size, fp_filter);
-		//fclose(fp_filter);
-
 		size_t hash_number;
 		FILE* fp_index = fopen(refIndexFile.c_str(), "rb");
 		if(!fp_index){
 			cerr << "ERROR: index_dist(), cannot open index file: " << refIndexFile << endl;
 			exit(1);
 		}
-		fread(&hash_number, sizeof(size_t), 1, fp_index);
-		uint64_t * hash_arr = (uint64_t*)malloc(hash_number * sizeof(uint64_t));
-		uint32_t * hash_size_arr = (uint32_t*)malloc(hash_number * sizeof(uint32_t));
-		fread(hash_arr, sizeof(uint64_t), hash_number, fp_index);
-		fread(hash_size_arr, sizeof(uint32_t), hash_number, fp_index);
+		int read_hash_number = fread(&hash_number, sizeof(size_t), 1, fp_index);
+		uint64_t* hash_arr = new uint64_t[hash_number];
+		uint32_t* hash_size_arr = new uint32_t[hash_number];
+		size_t read_hash_arr = fread(hash_arr, sizeof(uint64_t), hash_number, fp_index);
+		size_t read_hash_size_arr = fread(hash_size_arr, sizeof(uint32_t), hash_number, fp_index);
 		fclose(fp_index);
+		if(read_hash_number != 1 || read_hash_arr != hash_number || read_hash_size_arr != hash_number){
+			cerr << "ERROR: index_dist(), error read hash_number, hash_arr, hash_size_arr" << endl;
+			exit(1);
+		}
 
 		FILE* fp_dict = fopen(refDictFile.c_str(), "rb");
 		if(!fp_dict){
@@ -460,13 +465,13 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 		}
 		uint32_t max_hash_size = 1LLU << 24;
 		uint32_t* cur_point = new uint32_t[max_hash_size];
-		for(int i = 0; i < hash_number; i++){
+		for(size_t i = 0; i < hash_number; i++){
 			uint32_t cur_hash_size = hash_size_arr[i];
 			if(cur_hash_size > max_hash_size){
 				max_hash_size = cur_hash_size;
 				cur_point = new uint32_t[max_hash_size];
 			}
-			int hash_size = fread(cur_point, sizeof(uint32_t), cur_hash_size, fp_dict);
+			uint32_t hash_size = fread(cur_point, sizeof(uint32_t), cur_hash_size, fp_dict);
 			if(hash_size != cur_hash_size){
 				cerr << "ERROR: index_dist(), the read hash number is not equal to the saved hash number information" << endl;
 				exit(1);
@@ -476,6 +481,8 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			hash_map_arr.insert({cur_hash, cur_genome_arr});
 		}
 		delete [] cur_point;
+		delete [] hash_arr;
+		delete [] hash_size_arr;
 		fclose(fp_dict);
 	}
 	else
@@ -483,21 +490,21 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 		size_t refHashSize;
 		uint64_t refTotalIndex;
 		FILE* fp_index = fopen(refIndexFile.c_str(), "rb");
-		fread(&refHashSize, sizeof(size_t), 1, fp_index);
-		fread(&refTotalIndex, sizeof(uint64_t), 1, fp_index);
-		refSketchSizeArr = (uint32_t*)malloc(refHashSize * sizeof(uint32_t));
-		fread(refSketchSizeArr, sizeof(uint32_t), refHashSize, fp_index);
+		int read_ref_hash_size = fread(&refHashSize, sizeof(size_t), 1, fp_index);
+		int read_ref_total_index = fread(&refTotalIndex, sizeof(uint64_t), 1, fp_index);
+		refSketchSizeArr = new uint32_t[refHashSize];
+		size_t read_ref_sketch_size_arr = fread(refSketchSizeArr, sizeof(uint32_t), refHashSize, fp_index);
 		fclose(fp_index);
 
-		refOffset = (size_t*)malloc(refHashSize * sizeof(size_t));
+		refOffset = new size_t[refHashSize];
 		uint64_t refTotalHashNumber = 0;
-		for(int i = 0; i < refHashSize; i++){
+		for(size_t i = 0; i < refHashSize; i++){
 			refTotalHashNumber += refSketchSizeArr[i];
 			refOffset[i] = refSketchSizeArr[i];
 			if(i > 0) refOffset[i] += refOffset[i-1];
 		}
 		if(refTotalHashNumber != refTotalIndex){
-			cerr << "error of the total hash number of refSketch" << endl;
+			cerr << "ERROR: index_dist(), mismatched the total hash number of refSketch" << endl;
 			exit(1);
 		}
 		//cerr << "the refHashSize is: " << refHashSize << endl;
@@ -505,10 +512,14 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 		//cerr << "refTotalHashNumber is: " << refTotalHashNumber << endl;
 		//cerr << "the refOffset[n-1] is: " << refOffset[refHashSize-1] << endl;
 		
-		refIndexArr = (int*)malloc(refTotalHashNumber * sizeof(int));
+		refIndexArr = new int[refTotalHashNumber];
 		FILE* fp_dict = fopen(refDictFile.c_str(), "rb");
-		fread(refIndexArr, sizeof(int), refTotalHashNumber, fp_dict);
+		size_t read_ref_index_arr = fread(refIndexArr, sizeof(int), refTotalHashNumber, fp_dict);
 		fclose(fp_dict);
+		if(read_ref_hash_size != 1 || read_ref_total_index != 1 || read_ref_sketch_size_arr != refHashSize || read_ref_index_arr != refTotalHashNumber){
+			cerr << "ERROR: index_dist(), error read ref_hash_size, ref_total_index, ref_sketch_size_arr, ref_index_arr" << endl;
+			exit(1);
+		}
 	}
 	#ifdef Timer
 	double t1 = get_sec();
@@ -519,13 +530,16 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 
 	string folderPath = outputFile + ".dir";
 	string command0 = "mkdir -p " + folderPath;
-	system(command0.c_str());
+	int status = system(command0.c_str());
+	if(!status){
+		cerr << "success create: " << folderPath << endl;
+	}
 
 	vector<FILE*> fpArr;
 	vector<FILE*> fpIndexArr;
 	vector<string> dist_file_list;
 	vector<string> dist_index_list;
-	vector<int*> intersectionArr;
+	int** intersectionArr = new int*[numThreads];
 	for(int i = 0; i < numThreads; i++)
 	{
 		string tmpName = folderPath + '/' + outputFile + '.' + to_string(i);
@@ -537,15 +551,15 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 		FILE * fp1 = fopen(tmpIndexName.c_str(), "w+");
 		fpIndexArr.push_back(fp1);
 
-		int * arr = (int*)malloc(numRef * sizeof(int));
-		intersectionArr.push_back(arr);
+		intersectionArr[i] = new int[numRef];
 	}
 	//cerr << "before generate the intersection " << endl;
 
+	int progress_bar_size = get_progress_bar_size(numQuery);
 	cerr << "=====total: " << numQuery << endl;
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < numQuery; i++){
-		if(i % 10000 == 0) cerr << "=====finish: " << i << endl;
+	for(size_t i = 0; i < numQuery; i++){
+		if(i % progress_bar_size == 0) cerr << "=====finish: " << i << endl;
 		int tid = omp_get_thread_num();
 		fprintf(fpIndexArr[tid], "%s\t%s\n", query_sketches[i].fileName.c_str(), dist_file_list[tid].c_str());
 		memset(intersectionArr[tid], 0, numRef *sizeof(int));
@@ -561,7 +575,7 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			}
 		}
 		else{
-			for(int j = 0; j < query_sketches[i].hashSet.size(); j++){
+			for(size_t j = 0; j < query_sketches[i].hashSet.size(); j++){
 				uint32_t hash = query_sketches[i].hashSet[j];
 				if(refSketchSizeArr[hash] == 0) continue;
 				size_t start = hash > 0 ? refOffset[hash-1] : 0;
@@ -573,12 +587,12 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			}
 		}
 		
-		double nearDist = 1.0;
-		int nearCommon = 0;
-		int nearRSize = 0;
-		int nearRid = 0;
-		double nearJaccard = 0.0;
-		double nearContainment = 0.0;
+		//double nearDist = 1.0;
+		//int nearCommon = 0;
+		//int nearRSize = 0;
+		//int nearRid = 0;
+		//double nearJaccard = 0.0;
+		//double nearContainment = 0.0;
 
 		string strBuf("");
 		int size0, size1;
@@ -673,7 +687,7 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 				curQueue.pop();
 			}
 		}
-		fprintf(fpArr[tid], strBuf.c_str());
+		fprintf(fpArr[tid], "%s", strBuf.c_str());
 		strBuf = "";
 	}//end this query genome
 
@@ -683,7 +697,7 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 	{
 		fclose(fpArr[i]);
 		fclose(fpIndexArr[i]);
-		free(intersectionArr[i]);
+		delete [] intersectionArr[i];
 	}
 
 	//cerr << "finished fpArr fclose" << endl;
@@ -765,12 +779,12 @@ void dist(vector<sketch_t>& ref_sketches, vector<sketch_t>& query_sketches, stri
 
 	double t00 = get_sec();
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < ref_sketches.size(); i++){
+	for(size_t i = 0; i < ref_sketches.size(); i++){
 		std::sort(ref_sketches[i].hashSet.begin(), ref_sketches[i].hashSet.end());
 	}
 	
 	#pragma omp parallel for num_threads(numThreads) schedule(dynamic)
-	for(int i = 0; i < query_sketches.size(); i++){
+	for(size_t i = 0; i < query_sketches.size(); i++){
 		std::sort(query_sketches[i].hashSet.begin(), query_sketches[i].hashSet.end());
 	}
 	double t0 = get_sec();
@@ -849,7 +863,7 @@ void dist(vector<sketch_t>& ref_sketches, vector<sketch_t>& query_sketches, stri
 	double t1 = get_sec();
 	cerr << "===================time of multiple threads distance computing and save the subFile is: " << t1 - t0 << endl;
 
-	struct stat cof_stat;
+	//struct stat cof_stat;
 	FILE * cofp;
 	FILE * com_cofp = fopen(outputFile.c_str(), "w");
 	//fprintf(fpArr[tid], " %s\t%s\t%d\t%d\t%lf\t%lf\n", sketches[i].fileName.c_str(), sketches[j].fileName.c_str(), common, denom, jaccard, mashD);
@@ -924,7 +938,7 @@ setResult_t vgetJaccard(vector<uint32_t> list1, vector<uint32_t> list2)
 }
 
 
-int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, int &a, int &b){
+int u32_intersect_scalar_stop(const uint32_t *list1, uint32_t size1, const uint32_t *list2, uint32_t size2, uint32_t size3, uint64_t &a, uint64_t &b){
     uint64_t counter=0;
     const uint32_t *end1 = list1+size1, *end2 = list2+size2;
     a = 0;
@@ -955,8 +969,8 @@ int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint3
     //assert(size3 <= size1 + size2);
     int count=0;
 		//int a, b;
-		int a = 0; 
-		int b = 0;
+		uint64_t a = 0; 
+		uint64_t b = 0;
 		//int *i_a = &a;
 		//int *i_b = &b;
 		////int * i_a, * i_b;
@@ -965,14 +979,14 @@ int u32_intersect_vector_avx2(const uint32_t *list1, uint32_t size1, const uint3
     uint64_t st_a = (size1 / 8) * 8;
     uint64_t st_b = (size2 / 8) * 8;
 
-    int i_a_s, i_b_s;
+    uint64_t i_a_s, i_b_s;
 
     if(size3 <= 16){
         count += u32_intersect_scalar_stop(list1, size1, list2, size2, size3, a, b);
         return count;
     }
 
-    uint64_t stop = size3 - 16;
+    //uint64_t stop = size3 - 16;
     while(a < st_a && b < st_b){
 
         uint32_t a_max = list1[a+7];

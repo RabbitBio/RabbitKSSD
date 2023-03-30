@@ -6,27 +6,19 @@
 
 
 dim_shuffle_t* read_shuffle_dim(string shuffle_file){
-	//int * shuffled_dim;
 	FILE * shuf_in = fopen(shuffle_file.c_str(), "rb");
 	if(shuf_in == NULL){
-		err(errno, "cannot read shuffle file: %s\n", shuffle_file.c_str());
+		err(errno, "ERROR: read_shuffle_dim(), cannot read shuffle file: %s\n", shuffle_file.c_str());
 	}
 	dim_shuffle_t * dim_shuffle = (dim_shuffle_t *)malloc(sizeof(dim_shuffle_t));
-	fread(&(dim_shuffle->dim_shuffle_stat), sizeof(dim_shuffle_stat_t), 1, shuf_in);
+	int read_dim_shuffle = fread(&(dim_shuffle->dim_shuffle_stat), sizeof(dim_shuffle_stat_t), 1, shuf_in);
 	int dim_size = 1 << 4* dim_shuffle->dim_shuffle_stat.subk;
 	dim_shuffle->shuffled_dim= (int*) malloc(sizeof(int) * dim_size);
-	fread(dim_shuffle->shuffled_dim, sizeof(int) * dim_size, 1, shuf_in);
-	//fprintf(stderr, "read from %s\n", shuffle_file.c_str());
-	//fprintf(stderr, "\tthe half_k is: %d\n", dim_shuffle->dim_shuffle_stat.k);
-	//fprintf(stderr, "\tthe half_subk is: %d\n", dim_shuffle->dim_shuffle_stat.subk);
-	//fprintf(stderr, "\tthe drlevel is: %d\n", dim_shuffle->dim_shuffle_stat.drlevel);
-
-	//printf("print the shuffle_dim : \n");
-	//for(int i = 0; i < dim_size; i++)
-	//	printf("%lx\n", shuffled_dim[i]);
-	//exit(0);
-	//return shuffled_dim;
-	
+	int read_shuffled_dim = fread(dim_shuffle->shuffled_dim, sizeof(int), dim_size, shuf_in);
+	if(read_dim_shuffle != 1 || read_shuffled_dim != dim_size){
+		cerr << "ERROR: read_shufffle_dim(), error read dim_shuffle, shuffled_dim" << endl;
+		exit(1);
+	}
 	return dim_shuffle;
 }
 

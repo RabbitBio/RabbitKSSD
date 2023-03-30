@@ -93,14 +93,14 @@ unsigned int get_hashSize(int half_k, int drlevel)
 								"this might caused by too small or too large k\n"
 								"half kmer length = %d\n"
 								"dim reduction level %d\n"
-								"ctx_space size = %llu\n"
+								"ctx_space size = %lu\n"
 								"try rerun the program with option -k = %d\n",
 								primer_id, half_k, drlevel, ctx_space_sz, half_k + k_add);
 
 	}
 	unsigned int hashSize = primer[primer_id];
 	fprintf(stderr, "\tdimension reduced %d\n"
-									"\tctx_space size  %llu\n"
+									"\tctx_space size  %lu\n"
 									"\thalf_k is: %d\n"
 									"\tdrlevel is: %d\n"
 									"\tprimer_id is: %d\n"

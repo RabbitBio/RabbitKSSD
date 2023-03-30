@@ -28,8 +28,6 @@
 using namespace std;
 
 int main(int argc, char * argv[]){
-	
-	double t0 = get_sec();
 
 	CLI::App app{"rabbit_kssd: accelerating Kssd-based genome distance estimation on modern multi-core architectures"};
 	app.require_subcommand(1);
@@ -61,19 +59,21 @@ int main(int argc, char * argv[]){
 	int leastQual = 0;
 
 	auto shuffle_option_k = shuffle->add_option("-k, --halfk", half_k, "the half length of kmer size");
-	auto shuffle_option_s = shuffle->add_option("-s, --subk", half_subk, "the half length of substring space");
+	shuffle->add_option("-s, --subk", half_subk, "the half length of substring space");
 	auto shuffle_option_l = shuffle->add_option("-l, --reduction", drlevel, "the dimention reduction level");
 	auto shuffle_option_o = shuffle->add_option("-o, --output", outputFile, "set the output shuffle file");
+	shuffle_option_k->required();
+	shuffle_option_l->required();
+	shuffle_option_o->required();
 
 
 	auto sketch_option_i = sketch->add_option("-i, --input", refList, "list of input genome path, one genome per line");//TODO: only support input list
-	auto sketch_option_L = sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
 	auto sketch_option_o = sketch->add_option("-o, --output", outputFile, "set the output file");
-	auto sketch_option_t = sketch->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
-	auto sketch_option_n = sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
-	auto sketch_option_Q = sketch->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
-	auto sketch_flag_q = sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
-	//sketch_option_L->required();
+	sketch->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling");
+	sketch->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	sketch->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	sketch->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
+	sketch->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
 	sketch_option_i->required();
 	sketch_option_o->required();
 
@@ -81,36 +81,36 @@ int main(int argc, char * argv[]){
 	bool to_Kssd_sketch = false;
 	auto convert_option_i = convert->add_option("-i, --input", inputDir, "input Kssd sketches directory(including cofiles.stat, combco.index.0, combco.0) or RabbitKSSD sketches(with --reverse option)");
 	auto convert_option_o = convert->add_option("-o, --output", outputFile, "output sketches file in RabbitKSSD format (in Kssd format with --reverse option)");
-	auto convert_option_t = convert->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
-	auto convert_flag_q = convert->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
-	auto convert_flag_reverse = convert->add_flag("--reverse", to_Kssd_sketch, "convert sketch file from RabbitKSSD format to Kssd format");
+	convert->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	convert->add_flag("-q, --query", isQuery, "the input genomes are query genome, thus not generate the hash value index dictionary");
+	convert->add_flag("--reverse", to_Kssd_sketch, "convert sketch file from RabbitKSSD format to Kssd format");
 	convert_option_i->required();
 	convert_option_o->required();
 
 
 	
 	auto alldist_option_i = alldist->add_option("-i, --input", refList, "input list of genome path or one sketch file(*.sketch format)");
-	auto alldist_option_D = alldist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto alldist_option_L = alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
 	auto alldist_option_o = alldist->add_option("-o, --output", outputFile, "set the output file");
-	auto alldist_option_t = alldist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
-	auto alldist_option_M = alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
-	auto alldist_option_n = alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
-	auto alldist_option_Q = alldist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
+	alldist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	alldist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
+	alldist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	alldist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
+	alldist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	alldist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
 	//auto alldist_option_N = alldist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
 	alldist_option_i->required();
 	alldist_option_o->required();
 
 	auto dist_option_r = dist->add_option("-r, --reference", refList, "list of reference genome path or a reference sketch file(*.sketch format)");
 	auto dist_option_q = dist->add_option("-q, --query", queryList, "list of query genome path or a query sketch file (*.sketch format)");
-	auto dist_option_D = dist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
-	auto dist_option_L = dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
 	auto dist_option_o = dist->add_option("-o, --output", outputFile, "set the output file");
-	auto dist_option_t = dist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
-	auto dist_option_M = dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
 	auto dist_option_N = dist->add_option("-N, --neighborN_max", maxNeighbor, "maximum number of neighbor reference output");
-	auto dist_option_n = dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
-	auto dist_option_Q = dist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
+	dist->add_option("-D, --maxDist", maxDist, "maximum distance to save in the result, distances over the maximum distance are omitted");
+	dist->add_option("-L", shuf_file, "load the existed shuffle file for Fisher_yates shuffling, when input as list of genome path");
+	dist->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	dist->add_option("-M, --metric", isContainment, "output metric: 0, jaccard; 1, containment");
+	dist->add_option("-n, --leastNumKmer", leastNumKmer, "specify the least kmer occurence in fastq file");
+	dist->add_option("-Q, --leastQuality", leastQual, "Filter Kmer with lowest base quality < q in fastq file");
 	dist_option_r->required();
 	dist_option_q->required();
 	dist_option_o->required();
@@ -118,19 +118,19 @@ int main(int argc, char * argv[]){
 	string sketchFile = "default";
 	auto info_option_i = info->add_option("-i, --input", sketchFile, "input sketch file to get the infomation (*.sketch format)");
 	auto info_option_o = info->add_option("-o, --output", outputFile, "set output file");
-	auto info_flag_F = info->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
+	info->add_flag("-F, --Fined", isDetail, "output the detailed hash values of each sketch");
 	info_option_i->required();
 	info_option_o->required();
 
 	auto union_option_i = setUnion->add_option("-i, --input", sketchFile, "sketch file including hash values from multi-sketches (*.sketch format)");
 	auto union_option_o = setUnion->add_option("-o, --output", outputFile, "result file for union hash values (*.sketch format)");
-	auto union_option_t = setUnion->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	setUnion->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	union_option_i->required();
 	union_option_o->required();
 
 	auto merge_option_i = merge->add_option("-i, --input", refList, "list of multiple sketch files list, one file per line");
 	auto merge_option_o = merge->add_option("-o, --output", outputFile, "one single sketch file after merging (*.sketch format)");
-	auto merge_option_t = merge->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	merge->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	merge_option_i->required();
 	merge_option_o->required();
 
@@ -139,7 +139,7 @@ int main(int argc, char * argv[]){
 	auto sub_option_r = sub->add_option("--rs", refSketchFile, "reference sketch file (*.sketch format) to be subtracted from the query sketches");
 	auto sub_option_q = sub->add_option("--qs", querySketchFile, "the query sketches file, (*.sketch format)");
 	auto sub_option_o = sub->add_option("-o, --output", outputFile, "result sketch file (*.sketch format) after substraction");
-	auto sub_option_t = sub->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
+	sub->add_option("-t, --threads", threads, "set the thread number, default all CPUs of the platform");
 	sub_option_r->required();
 	sub_option_q->required();
 	sub_option_o->required();
@@ -164,14 +164,12 @@ int main(int argc, char * argv[]){
 	}
 	else if(app.got_subcommand(setUnion)){
 		cerr << "-----run the subcommand: union" << endl;
-		//command_union(sketchFile, outputFile, threads);
-		new_command_union(sketchFile, outputFile, threads);
+		command_union(sketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(sub)){
 		cerr << "-----run the subcommand: sub" << endl;
-		//command_sub(refSketchFile, querySketchFile, outputFile, threads);
-		new_command_sub(refSketchFile, querySketchFile, outputFile, threads);
+		command_sub(refSketchFile, querySketchFile, outputFile, threads);
 		return 0;
 	}
 	else if(app.got_subcommand(convert)){
@@ -185,9 +183,6 @@ int main(int argc, char * argv[]){
 		return 0;
 
 	}
-
-	double t1 = get_sec();
-	//cerr << "===================time of init parameters is: " << t1 - t0 << endl;
 	
 	if(app.got_subcommand(sketch)){
 		cerr << "-----run the subcommand: sketch" << endl;
@@ -197,7 +192,7 @@ int main(int argc, char * argv[]){
 				sketchInfo_t info;
 				readSketches(sketches, info, refList);
 				cerr << "input is a sketch file, rename the sketch file from: " << refList << " to: " << outputFile << endl;
-				string cmd0 = "mv " + refList + ' ' + outputFile;
+				string cmd0 = "cp " + refList + ' ' + outputFile;
 				system(cmd0.c_str());
 				//saveSketches(sketches, info, outputFile);
 				double tstart = get_sec();

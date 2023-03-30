@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 #make rabbitFX library
 cd RabbitFX &&
