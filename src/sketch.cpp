@@ -1287,7 +1287,8 @@ void convertSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string inputD
 
 void convert_from_RabbitKSSDSketch_to_KssdSketch(vector<sketch_t>& sketches, sketchInfo_t& info, string outputDir, int numThreads){
 	string command0 = "mkdir -p " + outputDir;
-	system(command0.c_str());
+	int stop = system(command0.c_str());
+	if(!stop)	cerr << command0 << endl;
 	string stateFile = outputDir + '/' + "cofiles.stat";
 	string indexFile = outputDir + '/' + "combco.index.0";
 	string sketchFile = outputDir + '/' + "combco.0";

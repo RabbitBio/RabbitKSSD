@@ -193,7 +193,9 @@ int main(int argc, char * argv[]){
 				readSketches(sketches, info, refList);
 				cerr << "input is a sketch file, rename the sketch file from: " << refList << " to: " << outputFile << endl;
 				string cmd0 = "cp " + refList + ' ' + outputFile;
-				system(cmd0.c_str());
+				int stop = system(cmd0.c_str());
+				if(!stop)	cerr << cmd0 << endl;
+				
 				//saveSketches(sketches, info, outputFile);
 				double tstart = get_sec();
 				string dictFile = outputFile + ".dict";
@@ -206,7 +208,8 @@ int main(int argc, char * argv[]){
 				//cerr << "input is a sketch file, do nothing" << endl;
 				cerr << "input is a sketch file, rename the sketch file from: " << refList << " to: " << outputFile << endl;
 				string cmd0 = "mv " + refList + ' ' + outputFile;
-				system(cmd0.c_str());
+				int stop = system(cmd0.c_str());
+				if(!stop)	cerr << cmd0 << endl;
 			}
 			return 0;
 		}

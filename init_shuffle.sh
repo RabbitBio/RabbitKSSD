@@ -17,8 +17,4 @@ mkdir -p shuf_file
 ./rabbit_kssd shuffle -k 8 -s 6 -l 2 -o shuf_file/L2K8.shuf
 ./rabbit_kssd shuffle -k 7 -s 6 -l 2 -o shuf_file/L2K7.shuf
 
-./rabbit_kssd shuffle -k 9 -s 6 -l 1 -o shuf_file/L1K9.shuf
-./rabbit_kssd shuffle -k 8 -s 6 -l 1 -o shuf_file/L1K8.shuf
-./rabbit_kssd shuffle -k 7 -s 6 -l 1 -o shuf_file/L1K7.shuf
-./rabbit_kssd shuffle -k 6 -s 5 -l 1 -o shuf_file/L1K6.shuf
 

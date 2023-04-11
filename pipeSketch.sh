@@ -16,12 +16,12 @@ cat $accessionList | while read line
 do
 	fastq-dump $line
 	ls ${line}.fastq > ${line}.list
-	./kssd sketch -L shuf_file/L3K10.shuf -i ${line}.list -o tmpSketchDir/${line}.sketch -q
+	./rabbit_kssd sketch -L shuf_file/L3K10.shuf -i ${line}.list -o tmpSketchDir/${line}.sketch -q
 	rm ${line}.fastq ${line}.list
 done
 
 ls tmpSketchDir/*.sketch >tmpSketch.list
-./kssd merge -i tmpSketch.list -o ${accessionList}.sketch
+./rabbit_kssd merge -i tmpSketch.list -o ${accessionList}.sketch
 
 rm tmpSketch.list
 rm -rf tmpSketchDir
