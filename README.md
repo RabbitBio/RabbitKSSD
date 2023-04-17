@@ -1,6 +1,9 @@
 
 
-RabbitKSSD is a high-performance implementation of Kssd with load-balanced task partition, fast I/O, efficient intermediate result access, and high performance data structure.
+RabbitKSSD is a high-speed genome distance estimation tool with a series of function mudules for genome alalysis, includeing:
+* `sketch`, generate sketch files.
+* `dist`, compute pairwise distances between reference and query genomes.
+* `set operation`, operations on sketches, including subtraction and union.
 
 
 ## Installation
@@ -219,5 +222,5 @@ Find the nearest neighbor reference for query dataset.
 All bug reports, comments and suggestions are welcome.
 
 ## Cite
-The paper of RabbitKSSD is under drafting.
+The paper of RabbitKSSD is under review.
 
