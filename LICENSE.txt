@@ -3,10 +3,13 @@ PURPOSE
 RabbitKSSD is a high-performance genome distance estimation application on modern multi-core architectures.
 Specifically, RabbitKSSD leverages load-balanced task partition, fast I/O, efficient intermediate result access, and high-performance data structures to improve the overall efficiency. 
 It is implemented in C++ and is distributed with:
+CLI11
+	https://github.com/CLIUtils/CLI11
+	3-Clause BSD License
 
 KSeq
 	https://github.com/attractivechaos/klib
-  MIT License
+	MIT License
 
 Robin_Hood Unordered Map and Set
   https://github.com/martinus/robin-hood-hashing
