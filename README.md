@@ -222,5 +222,4 @@ Find the nearest neighbor reference for query dataset.
 All bug reports, comments and suggestions are welcome.
 
 ## Cite
-The paper of RabbitKSSD is under review.
-
+Xiaoming Xu, Zekun Yin, Lifeng Yan, Huiguang Yi, Hua Wang, Bertil Schmidt, Weiguo Liu, RabbitKSSD: accelerating genome distance estimation on modern multi-core architectures, Bioinformatics, 2023;, btad695, https://doi.org/10.1093/bioinformatics/btad695
