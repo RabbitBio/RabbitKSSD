@@ -682,9 +682,9 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			}
 		}
 		else{
-			for(size_t j = 0; j < query_sketches[i].hashSet.size(); j++){
-				uint32_t hash = query_sketches[i].hashSet[j];
-				if(tid < numa_1){
+			if(tid < numa_1){
+				for(size_t j = 0; j < query_sketches[i].hashSet.size(); j++){
+					uint32_t hash = query_sketches[i].hashSet[j];
 					if(refSketchSizeArr0[hash] == 0) continue;
 					size_t start = hash > 0 ? refOffset0[hash-1] : 0;
 					size_t end = refOffset0[hash];
@@ -693,7 +693,10 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 						intersectionArr[tid][curIndex]++;
 					}
 				}
-				else{
+			}
+			else{
+				for(size_t j = 0; j < query_sketches[i].hashSet.size(); j++){
+					uint32_t hash = query_sketches[i].hashSet[j];
 					if(refSketchSizeArr1[hash] == 0) continue;
 					size_t start = hash > 0 ? refOffset1[hash-1] : 0;
 					size_t end = refOffset1[hash];
