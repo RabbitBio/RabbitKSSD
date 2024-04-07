@@ -501,6 +501,8 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 	uint32_t* refSketchSizeArr = NULL;
 	size_t* refOffset = NULL;
 	int* refIndexArr = NULL;
+	size_t refHashSize;
+	uint64_t refTotalIndex;
 	if(use64){
 		cerr << "use 64 in index_dist() " << endl;
 		size_t hash_number;
@@ -549,8 +551,6 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 	}
 	else
 	{
-		size_t refHashSize;
-		uint64_t refTotalIndex;
 		FILE* fp_index = fopen(refIndexFile.c_str(), "rb");
 		int read_ref_hash_size = fread(&refHashSize, sizeof(size_t), 1, fp_index);
 		int read_ref_total_index = fread(&refTotalIndex, sizeof(uint64_t), 1, fp_index);
@@ -583,6 +583,48 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 			exit(1);
 		}
 	}
+	
+	uint32_t* refSketchSizeArr0 = NULL;
+	uint32_t* refSketchSizeArr1 = NULL;
+	size_t* refOffset0 = NULL;
+	size_t* refOffset1 = NULL;
+	int* refIndexArr0 = NULL;
+	int* refIndexArr1 = NULL;
+	int numa_0 = 0;
+	int numa_1 = numThreads / 2;
+	if(!use64){
+		#pragma omp parallel for num_threads(numThreads)
+		for(int i = 0; i < numThreads; i++){
+			if(i == numa_0){
+				refSketchSizeArr0 = new uint32_t[refHashSize];
+				refOffset0 = new size_t[refHashSize];
+				refIndexArr0 = new int[refTotalIndex];
+				for(int t = 0; t < refHashSize; t++){
+					refSketchSizeArr0[t] = refSketchSizeArr[t];
+					refOffset0[t] = refOffset[t];
+				}
+				for(int t = 0; t < refTotalIndex; t++){
+					refIndexArr0[t] = refIndexArr[t];
+				}
+			}
+			if(i == numa_1){
+				refSketchSizeArr1 = new uint32_t[refHashSize];
+				refOffset1 = new size_t[refHashSize];
+				refIndexArr1 = new int[refTotalIndex];
+				for(int t = 0; t < refHashSize; t++){
+					refSketchSizeArr1[t] = refSketchSizeArr[t];
+					refOffset1[t] = refOffset[t];
+				}
+				for(int t = 0; t < refTotalIndex; t++){
+					refIndexArr1[t] = refIndexArr[t];
+				}
+			}
+		}
+		delete [] refOffset;
+		delete [] refSketchSizeArr;
+		delete [] refIndexArr;
+	}
+
 	#ifdef Timer
 	double t1 = get_sec();
 	cerr << "===================time of read the index and dict sketch file is: " << t1 - t0 << endl;
@@ -602,18 +644,21 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 	vector<string> dist_file_list;
 	vector<string> dist_index_list;
 	int** intersectionArr = new int*[numThreads];
+	#pragma omp parallel for num_threads(numThreads)
 	for(int i = 0; i < numThreads; i++)
 	{
 		string tmpName = folderPath + '/' + outputFile + '.' + to_string(i);
-		dist_file_list.push_back(tmpName);
 		FILE * fp0 = fopen(tmpName.c_str(), "w+");
-		fpArr.push_back(fp0);
 		string tmpIndexName = outputFile + ".index." + to_string(i);
-		dist_index_list.push_back(tmpIndexName);
 		FILE * fp1 = fopen(tmpIndexName.c_str(), "w+");
-		fpIndexArr.push_back(fp1);
-
 		intersectionArr[i] = new int[numRef];
+		#pragma omp critical
+		{
+			fpIndexArr.push_back(fp1);
+			dist_file_list.push_back(tmpName);
+			fpArr.push_back(fp0);
+			dist_index_list.push_back(tmpIndexName);
+		}
 	}
 	//cerr << "before generate the intersection " << endl;
 
@@ -639,12 +684,23 @@ void index_dist(vector<sketch_t>& ref_sketches, sketchInfo_t& ref_info, string r
 		else{
 			for(size_t j = 0; j < query_sketches[i].hashSet.size(); j++){
 				uint32_t hash = query_sketches[i].hashSet[j];
-				if(refSketchSizeArr[hash] == 0) continue;
-				size_t start = hash > 0 ? refOffset[hash-1] : 0;
-				size_t end = refOffset[hash];
-				for(size_t k = start; k < end; k++){
-					size_t curIndex = refIndexArr[k];
-					intersectionArr[tid][curIndex]++;
+				if(tid < numa_1){
+					if(refSketchSizeArr0[hash] == 0) continue;
+					size_t start = hash > 0 ? refOffset0[hash-1] : 0;
+					size_t end = refOffset0[hash];
+					for(size_t k = start; k < end; k++){
+						size_t curIndex = refIndexArr0[k];
+						intersectionArr[tid][curIndex]++;
+					}
+				}
+				else{
+					if(refSketchSizeArr1[hash] == 0) continue;
+					size_t start = hash > 0 ? refOffset1[hash-1] : 0;
+					size_t end = refOffset1[hash];
+					for(size_t k = start; k < end; k++){
+						size_t curIndex = refIndexArr1[k];
+						intersectionArr[tid][curIndex]++;
+					}
 				}
 			}
 		}
