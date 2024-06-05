@@ -50,7 +50,8 @@ kssd_parameter_t initParameter(int half_k, int half_subk, int drlevel, int * shu
 	parameter.dim_start = 0;
 	//parameter.dim_end = MIN_SUBCTX_DIM_SMP_SZ;
 	parameter.dim_end = dim_end;
-	unsigned int hashSize = get_hashSize(half_k, drlevel);
+	//unsigned int hashSize = get_hashSize(half_k, drlevel);
+	unsigned int hashSize = 2000;
 	parameter.hashSize = hashSize;
 	parameter.hashLimit = hashSize * LD_FCTR;
 	parameter.shuffled_dim = shuffled_dim;
